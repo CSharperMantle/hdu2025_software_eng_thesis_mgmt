@@ -216,9 +216,13 @@ graph TB
     UI1 --> BL2
     UI2 --> BL2
     UI2 --> BL3
+    UI2 --> BL4
     UI3 --> BL1
+    UI3 --> BL2
     UI3 --> BL5
+    UI3 --> BL6
     UI4 --> BL5
+    UI4 --> BL6
     
     BL1 --> DAO
     BL2 --> DAO
