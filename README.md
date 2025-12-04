@@ -5,8 +5,8 @@
 ## 项目结构
 
 * [docs/](docs/)：文档性内容
+  * [module-structure.md](docs/module-structure.md)：系统模块结构图
   * [progress/](docs/progress/)：过程性内容
-  * *TBA*
 * *TBA*
 
 ## 提交规范
