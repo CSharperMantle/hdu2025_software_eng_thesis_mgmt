@@ -5,6 +5,7 @@
 ## 项目结构
 
 * [docs/](docs/)：文档性内容
+  * [pd/](docs/pd/)：PowerDesigner 数据库工程文件
   * [progress/](docs/progress/)：过程性内容
   * *TBA*
 * *TBA*
