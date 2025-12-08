@@ -4,6 +4,7 @@
     "*.cdm": "xml",
     "*.ldb": "xml",
     "*.ldm": "xml",
+    "*.pdb": "xml",
     "*.pdm": "xml",
     "*.pjb": "xml",
     "*.prj": "xml",
