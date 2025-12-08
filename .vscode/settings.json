@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "*.cdb": "xml",
+    "*.cdm": "xml",
+    "*.ldb": "xml",
+    "*.ldm": "xml",
+    "*.pdm": "xml",
+    "*.pjb": "xml",
+    "*.prj": "xml",
+    "*.sws": "xml"
+  }
+}
