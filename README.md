@@ -12,6 +12,14 @@
 
 ## 提交规范
 
+### Git 设置
+
+```console
+$ git config --local core.autocrlf 'false'
+$ cp scripts/git-hooks-pre-commit .git/hooks/pre-commit
+$ chmod +x .git/hooks/pre-commit
+```
+
 ### 提交消息格式
 
 采用[Conventional Commits](https://www.conventionalcommits.org/zh-hans/v1.0.0/#%E6%A6%82%E8%BF%B0)规范，每个提交标题（subject）和正文（body）使用以下格式用英文提交：

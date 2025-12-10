@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -eu
+
+CR=$(printf '\r')
+
+root=$(git rev-parse --show-toplevel)
+target_dir="$root"/docs/pd
+
+if [ -d "$target_dir" ]; then
+    # Strip off machine-specific paths from PDM
+    files=$(find "$target_dir" -type f -name '*.pd?')
+    for f in $files; do
+        sed -i "s/^GenPathName=.*\$/GenPathName=/; s/\$/$CR/" "$f"
+        git add "$f"
+    done
+fi
+
+exit 0
