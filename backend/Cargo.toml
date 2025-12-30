@@ -1,0 +1,23 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "backend_database"
+path = "src/database/lib.rs"
+
+[[bin]]
+name = "backend_server"
+path = "src/server/main.rs"
+
+[dependencies]
+actix-web = "4"
+env_logger = "0.11.8"
+diesel = { version = "2.3.5", features = ["postgres"] }
+# build libpq and openssl as part of the build process
+# uncomment these lines if you run into setup issues
+# pq-sys = { version = "0.6", features = ["bundled"] }
+# openssl-sys = { version = "0.9.100", features = ["vendored"] } 
+dotenvy = "0.15"
+serde = "1.0.228"
