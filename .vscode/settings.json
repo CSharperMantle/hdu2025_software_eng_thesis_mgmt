@@ -8,6 +8,6 @@
     "*.pdm": "xml",
     "*.pjb": "xml",
     "*.prj": "xml",
-    "*.sws": "xml"
+    "*.sws": "xml",
   }
 }
