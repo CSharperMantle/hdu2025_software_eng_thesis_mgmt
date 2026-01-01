@@ -11,7 +11,7 @@ create table SysUser (
    user_login           VARCHAR(16)          not null,
    user_password_hash   BYTEA                not null,
    user_password_salt   BYTEA                not null,
-   user_avatar          CHAR                 null,
+   user_avatar          BYTEA                null,
    constraint PK_SYSUSER primary key (user_id)
 );
 
@@ -123,7 +123,7 @@ create table Topic (
    topic_max_students   INT4                 not null,
    topic_type           INT2                 not null
       constraint CKC_TOPIC_TYPE_TOPIC check (topic_type in (0,1,2,3,4)),
-   topic_review_status  INT2                 not null
+   topic_review_status  INT2                 not null default 0
       constraint CKC_TOPIC_REVIEW_STAT_TOPIC check (topic_review_status in (0,1,2)),
    constraint PK_TOPIC primary key (topic_id),
    constraint FK_TOPIC_OPENTO_MAJOR foreign key (major_id)
@@ -245,8 +245,9 @@ create table ProgressReport (
    prog_report_type     INT2                 not null
       constraint CKC_PROG_REPORT_TYPE_PROGRESS check (prog_report_type in (0,1)),
    prog_report_time     DATE                 not null,
-   prog_report_attachment TEXT                 not null,
-   prog_report_outcome  BOOL                 null,
+   prog_report_attachment BYTEA               not null,
+   prog_report_outcome  INT2                 not null default 0
+      constraint CKC_PROG_REPORT_OUTCO_PROGRESS check (prog_report_outcome in (0,1,2)),
    prog_report_comment  TEXT                 null,
    prog_report_grade    DECIMAL              null,
    constraint PK_PROGRESSREPORT primary key (prog_report_id),
@@ -288,7 +289,7 @@ create table FinalDefense (
    user_id              INT4                 not null,
    Def_user_id          INT4                 not null,
    final_def_time       DATE                 not null,
-   final_def_attachment TEXT                 not null,
+   final_def_attachment BYTEA               not null,
    final_def_outcome    BOOL                 null,
    final_def_comment    TEXT                 null,
    final_def_grade      DECIMAL              null,
