@@ -1,4 +1,5 @@
 use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +74,7 @@ pub struct Student {
     pub topic_id: Option<i32>,
     pub major_id: i32,
     pub student_name: String,
-    pub assn_time: chrono::NaiveDate,
+    pub assn_time: DateTime<Utc>,
 }
 
 #[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -83,7 +84,7 @@ pub struct Student {
 pub struct AssignmentRequest {
     pub user_id: i32,
     pub topic_id: i32,
-    pub assn_req_time: chrono::NaiveDate,
+    pub assn_req_time: DateTime<Utc>,
 }
 
 #[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -95,7 +96,7 @@ pub struct ProgressReport {
     pub topic_id: i32,
     pub user_id: i32,
     pub prog_report_type: i16,
-    pub prog_report_time: chrono::NaiveDate,
+    pub prog_report_time: DateTime<Utc>,
     pub prog_report_attachment: Vec<u8>,
     pub prog_report_outcome: i16,
     pub prog_report_comment: Option<String>,
@@ -112,7 +113,7 @@ pub struct FinalDefense {
     pub topic_id: i32,
     pub user_id: i32,
     pub def_user_id: i32,
-    pub final_def_time: chrono::NaiveDate,
+    pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: Vec<u8>,
     pub final_def_outcome: Option<bool>,
     pub final_def_comment: Option<String>,
@@ -182,7 +183,7 @@ pub struct NewStudent<'a> {
     pub topic_id: Option<i32>,
     pub major_id: i32,
     pub student_name: &'a str,
-    pub assn_time: chrono::NaiveDate,
+    pub assn_time: DateTime<Utc>,
 }
 
 #[derive(Insertable, Debug)]
@@ -190,7 +191,7 @@ pub struct NewStudent<'a> {
 pub struct NewAssignmentRequest {
     pub user_id: i32,
     pub topic_id: i32,
-    pub assn_req_time: chrono::NaiveDate,
+    pub assn_req_time: DateTime<Utc>,
 }
 
 #[derive(Insertable, Debug)]
@@ -199,7 +200,7 @@ pub struct NewProgressReport<'a> {
     pub topic_id: i32,
     pub user_id: i32,
     pub prog_report_type: i16,
-    pub prog_report_time: chrono::NaiveDate,
+    pub prog_report_time: DateTime<Utc>,
     pub prog_report_attachment: &'a [u8],
     pub prog_report_outcome: i16,
     pub prog_report_comment: Option<&'a str>,
@@ -213,7 +214,7 @@ pub struct NewFinalDefense<'a> {
     pub topic_id: i32,
     pub user_id: i32,
     pub def_user_id: i32,
-    pub final_def_time: chrono::NaiveDate,
+    pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: &'a [u8],
     pub final_def_outcome: Option<bool>,
     pub final_def_comment: Option<&'a str>,

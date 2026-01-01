@@ -163,7 +163,7 @@ create table Student (
    topic_id             INT4                 null,
    major_id             INT4                 not null,
    student_name         VARCHAR(16)          not null,
-   assn_time            DATE                 not null,
+   assn_time            TIMESTAMP WITH TIME ZONE not null,
    constraint PK_STUDENT primary key (user_id),
    constraint FK_STUDENT_ASSIGNMEN_TOPIC foreign key (topic_id)
       references Topic (topic_id)
@@ -203,7 +203,7 @@ major_id
 create table AssignmentRequest (
    user_id              INT4                 not null,
    topic_id             INT4                 not null,
-   assn_req_time        DATE                 not null,
+   assn_req_time        TIMESTAMP WITH TIME ZONE not null,
    constraint PK_ASSIGNMENTREQUEST primary key (user_id, topic_id),
    constraint FK_ASSIGNME_ASSIGNMEN_TOPIC foreign key (topic_id)
       references Topic (topic_id)
@@ -244,7 +244,7 @@ create table ProgressReport (
    user_id                INT4               not null,
    prog_report_type       INT2               not null
       constraint CKC_PROG_REPORT_TYPE_PROGRESS check (prog_report_type in (0,1)),
-   prog_report_time       DATE               not null,
+   prog_report_time       TIMESTAMP WITH TIME ZONE not null,
    prog_report_attachment BYTEA              not null,
    prog_report_outcome    INT2               not null default 0
       constraint CKC_PROG_REPORT_OUTCO_PROGRESS check (prog_report_outcome in (0,1,2)),
@@ -288,7 +288,7 @@ create table FinalDefense (
    topic_id             INT4                 not null,
    user_id              INT4                 not null,
    Def_user_id          INT4                 not null,
-   final_def_time       DATE                 not null,
+   final_def_time       TIMESTAMP WITH TIME ZONE not null,
    final_def_attachment BYTEA                not null,
    final_def_outcome    BOOL                 null,
    final_def_comment    TEXT                 null,

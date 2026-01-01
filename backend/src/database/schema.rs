@@ -4,7 +4,7 @@ diesel::table! {
     assignmentrequest (user_id, topic_id) {
         user_id -> Int4,
         topic_id -> Int4,
-        assn_req_time -> Date,
+        assn_req_time -> Timestamptz,
     }
 }
 
@@ -20,7 +20,7 @@ diesel::table! {
         topic_id -> Int4,
         user_id -> Int4,
         def_user_id -> Int4,
-        final_def_time -> Date,
+        final_def_time -> Timestamptz,
         final_def_attachment -> Bytea,
         final_def_outcome -> Nullable<Bool>,
         final_def_comment -> Nullable<Text>,
@@ -48,7 +48,7 @@ diesel::table! {
         topic_id -> Int4,
         user_id -> Int4,
         prog_report_type -> Int2,
-        prog_report_time -> Date,
+        prog_report_time -> Timestamptz,
         prog_report_attachment -> Bytea,
         prog_report_outcome -> Int2,
         prog_report_comment -> Nullable<Text>,
@@ -63,7 +63,7 @@ diesel::table! {
         major_id -> Int4,
         #[max_length = 16]
         student_name -> Varchar,
-        assn_time -> Date,
+        assn_time -> Timestamptz,
     }
 }
 
