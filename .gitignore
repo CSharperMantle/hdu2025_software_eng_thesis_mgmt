@@ -1,6 +1,7 @@
 ~$*
 docs/pd/*.sws
 docs/pd/*.sql
+.diesel_lock
 
 .env
 
