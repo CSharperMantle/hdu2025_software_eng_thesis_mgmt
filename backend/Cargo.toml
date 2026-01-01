@@ -12,15 +12,22 @@ name = "backend_server"
 path = "src/server/main.rs"
 
 [dependencies]
+serde = "1.0.228"
 actix-web = "4"
+actix-session = { version = "0.11.0", features = ["cookie-session"] }
 env_logger = "0.11.8"
-diesel = { version = "2.3.5", features = ["postgres", "chrono", "numeric"] }
+bigdecimal = { version = "0.4.10", features = ["serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
+diesel = { version = "2.3.5", features = [
+    "postgres",
+    "chrono",
+    "numeric",
+    "r2d2",
+] }
 # build libpq and openssl as part of the build process
 # uncomment these lines if you run into setup issues
 # pq-sys = { version = "0.6", features = ["bundled"] }
 # openssl-sys = { version = "0.9.100", features = ["vendored"] } 
 dotenvy = "0.15"
-serde = "1.0.228"
-bigdecimal = { version = "0.4.10", features = ["serde"] }
-chrono = { version = "0.4.42", features = ["serde"] }
 dotenvy_macro = "0.15.7"
+argon2 = "0.5.3"
