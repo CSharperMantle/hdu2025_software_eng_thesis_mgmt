@@ -1,7 +1,9 @@
 ~$*
 docs/pd/*.sws
 docs/pd/*.sql
+
 .diesel_lock
+backend/NOTES.md
 
 .env
 
