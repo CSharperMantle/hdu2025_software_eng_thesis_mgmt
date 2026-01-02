@@ -7,8 +7,8 @@
 /* Table: SysUser                                               */
 /*==============================================================*/
 create table SysUser (
-   user_id              SERIAL not null,
-   user_login           VARCHAR(16)          not null,
+   user_id              SERIAL               not null,
+   user_login           VARCHAR(16)          unique not null,
    user_password_hash   BYTEA                not null,
    user_password_salt   BYTEA                not null,
    user_avatar          BYTEA                null,

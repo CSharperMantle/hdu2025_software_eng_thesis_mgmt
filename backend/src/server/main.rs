@@ -1,5 +1,3 @@
-#![deny(clippy::all)]
-
 mod route;
 mod model;
 
