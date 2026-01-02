@@ -7,7 +7,9 @@ use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use dotenvy_macro::dotenv;
 
-pub fn get_conn_pool() -> Pool<ConnectionManager<PgConnection>> {
+pub type DbPool = Pool<ConnectionManager<PgConnection>>;
+
+pub fn get_conn_pool() -> DbPool {
     let manager = ConnectionManager::<PgConnection>::new(dotenv!("DATABASE_URL"));
     Pool::builder()
         .max_size(5)

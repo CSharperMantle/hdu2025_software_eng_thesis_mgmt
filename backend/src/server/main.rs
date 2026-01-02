@@ -1,6 +1,7 @@
 #![deny(clippy::all)]
 
 mod route;
+mod model;
 
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 use actix_web::{App, HttpServer, cookie::Key, middleware::Logger, web};
@@ -41,6 +42,25 @@ async fn main() -> std::io::Result<()> {
             )
             .app_data(web::Data::new(pool.clone()))
             .service(route::ping)
+            .service(route::login)
+            .service(route::logout)
+            .service(route::get_current_user)
+            .service(route::update_current_user)
+            .service(route::create_user)
+            .service(route::get_topics)
+            .service(route::create_topic)
+            .service(route::search_topics)
+            .service(route::get_topic_detail)
+            .service(route::update_topic)
+            .service(route::get_assignments)
+            .service(route::create_assignment)
+            .service(route::update_assignment_status)
+            .service(route::get_progress_reports)
+            .service(route::create_progress_report)
+            .service(route::update_progress_report)
+            .service(route::get_final_defenses)
+            .service(route::create_final_defense)
+            .service(route::update_final_defense)
     })
     .bind((
         dotenv!("SERVER_HOST"),
