@@ -1,191 +1,98 @@
 use actix_web::{HttpResponse, ResponseError};
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+)]
+#[repr(u8)]
 #[serde(rename_all = "snake_case")]
 pub enum UserRole {
-    Admin,
-    Student,
-    Teacher,
-    DefenseBoard,
-    Office,
+    /// 系统管理员
+    Admin = 0,
+    /// 教师
+    Student = 1,
+    /// 教师
+    Teacher = 2,
+    /// 答辩组
+    DefenseBoard = 3,
+    /// 教科办
+    Office = 4,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+)]
+#[repr(i16)]
 #[serde(rename_all = "snake_case")]
 pub enum TopicType {
-    /// 0: 理论研究型
-    Theoretical,
-    /// 1: 应用开发型
-    Applied,
-    /// 2: 实验研究型
-    Experimental,
-    /// 3: 工程设计型
-    Engineering,
-    /// 4: 其他
-    Other,
+    /// 理论研究型
+    Theoretical = 0,
+    /// 应用开发型
+    Applied = 1,
+    /// 实验研究型
+    Experimental = 2,
+    /// 工程设计型
+    Engineering = 3,
+    /// 其他
+    Other = 4,
 }
 
-impl From<TopicType> for i16 {
-    fn from(value: TopicType) -> Self {
-        match value {
-            TopicType::Theoretical => 0,
-            TopicType::Applied => 1,
-            TopicType::Experimental => 2,
-            TopicType::Engineering => 3,
-            TopicType::Other => 4,
-        }
-    }
-}
-
-impl TryFrom<i16> for TopicType {
-    type Error = ();
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(TopicType::Theoretical),
-            1 => Ok(TopicType::Applied),
-            2 => Ok(TopicType::Experimental),
-            3 => Ok(TopicType::Engineering),
-            4 => Ok(TopicType::Other),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+)]
+#[repr(i16)]
 #[serde(rename_all = "snake_case")]
 pub enum TopicReviewStatus {
     /// 0: 待审核
-    Pending,
+    Pending = 0,
     /// 1: 已通过
-    Approved,
+    Approved = 1,
     /// 2: 已拒绝
-    Rejected,
+    Rejected = 2,
 }
 
-impl From<TopicReviewStatus> for i16 {
-    fn from(value: TopicReviewStatus) -> Self {
-        match value {
-            TopicReviewStatus::Pending => 0,
-            TopicReviewStatus::Approved => 1,
-            TopicReviewStatus::Rejected => 2,
-        }
-    }
-}
-
-impl TryFrom<i16> for TopicReviewStatus {
-    type Error = ();
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(TopicReviewStatus::Pending),
-            1 => Ok(TopicReviewStatus::Approved),
-            2 => Ok(TopicReviewStatus::Rejected),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+)]
+#[repr(i16)]
 #[serde(rename_all = "snake_case")]
 pub enum ProgressReportType {
     /// 0: 开题报告
-    Proposal,
+    Proposal = 0,
     /// 1: 中期检查
-    Midterm,
+    Midterm = 1,
 }
 
-impl From<ProgressReportType> for i16 {
-    fn from(value: ProgressReportType) -> Self {
-        match value {
-            ProgressReportType::Proposal => 0,
-            ProgressReportType::Midterm => 1,
-        }
-    }
-}
-
-impl TryFrom<i16> for ProgressReportType {
-    type Error = ();
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(ProgressReportType::Proposal),
-            1 => Ok(ProgressReportType::Midterm),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+)]
+#[repr(i16)]
 #[serde(rename_all = "snake_case")]
 pub enum ProgressOutcome {
     /// 0: 无结论
-    NoConclusion,
+    NoConclusion = 0,
     /// 1: 已通过
-    Passed,
+    Passed = 1,
     /// 2: 已打回
-    Rejected,
+    Rejected = 2,
 }
 
-impl From<ProgressOutcome> for i16 {
-    fn from(value: ProgressOutcome) -> Self {
-        match value {
-            ProgressOutcome::NoConclusion => 0,
-            ProgressOutcome::Passed => 1,
-            ProgressOutcome::Rejected => 2,
-        }
-    }
-}
-
-impl TryFrom<i16> for ProgressOutcome {
-    type Error = ();
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(ProgressOutcome::NoConclusion),
-            1 => Ok(ProgressOutcome::Passed),
-            2 => Ok(ProgressOutcome::Rejected),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+)]
+#[repr(i16)]
 #[serde(rename_all = "snake_case")]
 pub enum AssignmentStatus {
     /// 0: 待审核
-    Pending,
+    Pending = 0,
     /// 1: 已通过
-    Approved,
+    Approved = 1,
     /// 2: 已拒绝
-    Rejected,
-}
-
-impl From<AssignmentStatus> for i16 {
-    fn from(value: AssignmentStatus) -> Self {
-        match value {
-            AssignmentStatus::Pending => 0,
-            AssignmentStatus::Approved => 1,
-            AssignmentStatus::Rejected => 2,
-        }
-    }
-}
-
-impl TryFrom<i16> for AssignmentStatus {
-    type Error = ();
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(AssignmentStatus::Pending),
-            1 => Ok(AssignmentStatus::Approved),
-            2 => Ok(AssignmentStatus::Rejected),
-            _ => Err(()),
-        }
-    }
+    Rejected = 2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -389,7 +296,7 @@ pub enum ApiError {
     NotFound,
     BadRequest(String),
     Conflict(String),
-    InternalServerError,
+    InternalServerError(String),
 }
 
 impl fmt::Display for ApiError {
@@ -400,7 +307,7 @@ impl fmt::Display for ApiError {
             ApiError::NotFound => write!(f, "资源未找到"),
             ApiError::BadRequest(msg) => write!(f, "请求格式错误: {}", msg),
             ApiError::Conflict(msg) => write!(f, "资源冲突: {}", msg),
-            ApiError::InternalServerError => write!(f, "服务器内部错误"),
+            ApiError::InternalServerError(msg) => write!(f, "服务器内部错误: {}", msg),
         }
     }
 }
@@ -423,7 +330,7 @@ impl ResponseError for ApiError {
             ApiError::Conflict(_) => HttpResponse::Conflict().json(ErrorResponse {
                 message: self.to_string(),
             }),
-            ApiError::InternalServerError => {
+            ApiError::InternalServerError(_) => {
                 HttpResponse::InternalServerError().json(ErrorResponse {
                     message: self.to_string(),
                 })
@@ -437,9 +344,26 @@ pub struct ErrorResponse {
     pub message: String,
 }
 
+pub const AUTH_INFO_SESSION_KEY: &str = "auth_info";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserSession {
-    pub user_id: i32,
-    pub role: UserRole,
-    pub username: String,
+pub enum AuthInfoUserRole {
+    Student,
+    Teacher,
+    DefenseBoard,
+    Office,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AuthInfo {
+    SysAdmin {
+        user_id: i32,
+        username: String,
+        impersonating: Option<i32>,
+    },
+    User {
+        user_id: i32,
+        username: String,
+        role: AuthInfoUserRole,
+    },
 }
