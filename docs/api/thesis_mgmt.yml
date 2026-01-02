@@ -1,0 +1,466 @@
+openapi: "3.1.1"
+
+info:
+  title: 毕业设计管理系统后端 API
+  version: "0.1"
+
+servers:
+  - url: http://localhost:8080/api
+
+tags:
+  - name: sys
+    description: 系统管理相关接口
+  - name: user
+    description: 用户相关接口
+  - name: topic
+    description: 课题管理相关接口
+  - name: assignment
+    description: 选题管理相关接口
+  - name: progress
+    description: 开题、中期、结项进展管理相关接口
+
+paths:
+  /ping:
+    get:
+      summary: 检测服务器状态
+      tags:
+        - sys
+      responses:
+        "200":
+          description: 服务器正常在线
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+
+  # Authentication APIs
+  /login:
+    post:
+      tags:
+        - user
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 认证失败
+
+  /logout:
+    post:
+      tags:
+        - user
+      summary: 注销
+      responses:
+        "200":
+          description: 注销成功
+        "401":
+          description: 未登录
+
+  /user:
+    get:
+      tags:
+        - user
+      summary: 获取登录用户信息
+      responses:
+        "200":
+          description: 当前登录用户信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGetResponse"
+        "401":
+          description: 未登录
+    post:
+      tags:
+        - user
+      summary: 更新登录用户信息
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPostRequest"
+      responses:
+        "200":
+          description: 用户信息更新成功
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+    put:
+      tags:
+        - user
+      summary: 创建新用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPutRequest"
+      responses:
+        "201":
+          description: 用户创建成功
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topics:
+    get:
+      tags:
+        - topic
+      summary: 获取可见课题列表
+      responses:
+        "200":
+          description: 课题列表
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topic:
+    put:
+      tags:
+        - topic
+      summary: 创建新课题
+      responses:
+        "201":
+          description: 课题创建成功
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topic/search:
+    get:
+      tags:
+        - topic
+      summary: 检索课题
+      responses:
+        "200":
+          description: 检索结果
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topic/{topic_id}:
+    get:
+      tags:
+        - topic
+      summary: 按序号获取课题详情
+      parameters:
+        - name: topic_id
+          description: 课题序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 课题详情
+        "404":
+          description: 未找到指定课题
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+    post:
+      tags:
+        - topic
+      summary: 按序号更新课题信息
+      parameters:
+        - name: topic_id
+          description: 课题序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 课题更新成功
+        "400":
+          description: 请求体格式错误
+        "404":
+          description: 未找到指定课题
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /assignments:
+    get:
+      tags:
+        - assignment
+      summary: 获取可见选题列表
+      responses:
+        "200":
+          description: 选题列表
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /assignment:
+    put:
+      tags:
+        - assignment
+      summary: 申请选题
+      responses:
+        "201":
+          description: 选题申请成功
+        "409":
+          description: 选题申请失败
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /assignment/{student_id}/{topic_id}:
+    post:
+      tags:
+        - assignment
+      summary: 更新选题申请状态
+      parameters:
+        - name: student_id
+          description: 学生序号
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: topic_id
+          description: 课题序号
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 选题申请状态更新成功
+        "409":
+          description: 选题申请状态更新失败
+        "404":
+          description: 未找到指定选题申请或学生
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /progress_report:
+    get:
+      tags:
+        - progress
+      summary: 获取开题、中期进展
+      responses:
+        "200":
+          description: 进展内容
+        "404":
+          description: 无当前进展
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /progress_report/{report_id}:
+    post:
+      tags:
+        - progress
+      summary: 更新开题、中期进展
+      parameters:
+        - name: report_id
+          description: 进展序号
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 进展更新成功
+        "409":
+          description: 进展更新失败
+        "404":
+          description: 未找到指定进展
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /final_defense:
+    get:
+      tags:
+        - progress
+      summary: 获取结项答辩进展
+      responses:
+        "200":
+          description: 结项答辩进展内容
+        "404":
+          description: 无结项答辩进展
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /final_defense/{report_id}:
+    post:
+      tags:
+        - progress
+      summary: 更新结项答辩进展
+      parameters:
+        - name: report_id
+          description: 结项答辩进展序号
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 结项答辩进展更新成功
+        "409":
+          description: 结项答辩进展更新失败
+        "404":
+          description: 未找到指定结项答辩进展
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+components:
+  schemas:
+    PingResponse:
+      type: string
+      enum:
+        - pong
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户登录名
+          example: "23010001"
+        password:
+          type: string
+          description: 用户密码
+          example: "ExamplePassword123!"
+        role:
+          type: string
+          enum:
+            - admin
+            - student
+            - teacher
+            - defense_board
+            - office
+          description: 用户身份
+          example: "student"
+      required:
+        - username
+        - password
+        - role
+    UserGetResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 用户序号
+          example: 1
+        username:
+          type: string
+          description: 用户登录名
+          example: "23010001"
+        role:
+          type: string
+          enum:
+            - admin
+            - student
+            - teacher
+            - defense_board
+            - office
+          description: 用户身份
+          example: "student"
+        name:
+          type: string
+          description: 用户真实姓名
+          example: "张吉惟"
+        avatar:
+          type: string
+          description: 用户头像 Data URL
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
+      required:
+        - id
+        - username
+        - role
+    UserPostRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 用户真实姓名
+          example: "张吉惟"
+        password:
+          type: string
+          description: 用户密码
+          example: "NewExamplePassword123!"
+        avatar:
+          type: string
+          description: 用户头像 Data URL
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
+      required: []
+    UserPutRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户登录名
+          example: "23010001"
+        password:
+          type: string
+          description: 用户密码
+          example: "ExamplePassword123!"
+        role:
+          type: string
+          enum:
+            - admin
+            - student
+            - teacher
+            - defense_board
+            - office
+          description: 用户身份
+          example: "student"
+        name:
+          type: string
+          description: >-
+            用户真实姓名，身份为 `student`、`teacher`、`defense_board` 时必填
+          example: "张吉惟"
+        avatar:
+          type: string
+          description: 用户头像 Data URL
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
+      required:
+        - username
+        - password
+        - role
+    
