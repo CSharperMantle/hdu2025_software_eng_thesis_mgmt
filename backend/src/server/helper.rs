@@ -68,3 +68,13 @@ pub fn get_session_user_role(session: &Session) -> AnyResult<AuthInfoUserRole> {
         Err(anyhow!("Not logged in"))
     }
 }
+
+pub fn get_session_user_id(session: &Session) -> AnyResult<i32> {
+    if let Some(auth_info) = session.get::<AuthInfo>(AUTH_INFO_SESSION_KEY)? {
+        match auth_info {
+            AuthInfo::User { user_id, .. } | AuthInfo::SysAdmin { user_id, .. } => Ok(user_id),
+        }
+    } else {
+        Err(anyhow!("Not logged in"))
+    }
+}
