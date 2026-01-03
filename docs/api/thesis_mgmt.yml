@@ -115,6 +115,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserGetResponse"
+        "409":
+          description: 用户创建失败，同名用户已存在
         "400":
           description: 请求体格式错误
         "401":

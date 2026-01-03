@@ -23,6 +23,10 @@ pub async fn login(
 ) -> Result<HttpResponse, impl ResponseError> {
     use backend_database::schema;
 
+    if is_session_authed(&session) {
+        return Err(ApiError::BadRequest(str!("Already logged in")));
+    }
+
     let mut conn = pool
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
@@ -136,7 +140,7 @@ pub async fn create_user(
                 user_avatar: req.avatar.as_deref(),
             })
             .get_result::<SysUser>(conn)
-            .map_err(|_| ApiError::InternalServerError(str!("Failed to create new user")))?;
+            .map_err(|_| ApiError::Conflict(str!("Failed to create new user")))?;
 
         match req.role {
             UserRole::Admin => diesel::insert_into(schema::sysadmin::dsl::sysadmin)
@@ -184,8 +188,11 @@ pub async fn create_user(
         id: new_sys_user.user_id,
         username: new_sys_user.user_login,
         role: req.role,
-        name: None,
-        avatar: None,
+        name: match req.role {
+            UserRole::Student | UserRole::Teacher => req.name.clone(),
+            _ => None,
+        },
+        avatar: req.avatar.clone(),
     }))
 }
 
