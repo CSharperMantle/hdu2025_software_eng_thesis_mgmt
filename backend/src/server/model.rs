@@ -99,7 +99,6 @@ pub enum AssignmentStatus {
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
-    pub role: UserRole,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
