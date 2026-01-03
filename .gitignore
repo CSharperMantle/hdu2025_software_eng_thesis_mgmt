@@ -4,6 +4,7 @@ docs/pd/*.sql
 
 .diesel_lock
 backend/NOTES.md
+docs/api/bruno
 
 .env
 
