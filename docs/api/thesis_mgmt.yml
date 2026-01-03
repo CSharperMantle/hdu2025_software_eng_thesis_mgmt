@@ -889,20 +889,9 @@ components:
           type: string
           description: 用户密码
           example: "ExamplePassword123!"
-        role:
-          type: string
-          enum:
-            - admin
-            - student
-            - teacher
-            - defense_board
-            - office
-          description: 用户身份
-          example: "student"
       required:
         - username
         - password
-        - role
     UserGetResponse:
       type: object
       properties:
