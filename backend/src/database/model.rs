@@ -10,7 +10,7 @@ pub struct SysUser {
     pub user_login: String,
     pub user_password_hash: Vec<u8>,
     pub user_password_salt: Vec<u8>,
-    pub user_avatar: Option<Vec<u8>>,
+    pub user_avatar: Option<String>,
 }
 
 #[derive(Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -74,7 +74,7 @@ pub struct Student {
     pub topic_id: Option<i32>,
     pub major_id: i32,
     pub student_name: String,
-    pub assn_time: DateTime<Utc>,
+    pub assn_time: Option<DateTime<Utc>>,
 }
 
 #[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -97,7 +97,7 @@ pub struct ProgressReport {
     pub user_id: i32,
     pub prog_report_type: i16,
     pub prog_report_time: DateTime<Utc>,
-    pub prog_report_attachment: Vec<u8>,
+    pub prog_report_attachment: String,
     pub prog_report_outcome: i16,
     pub prog_report_comment: Option<String>,
     pub prog_report_grade: Option<BigDecimal>,
@@ -114,7 +114,7 @@ pub struct FinalDefense {
     pub user_id: i32,
     pub def_user_id: i32,
     pub final_def_time: DateTime<Utc>,
-    pub final_def_attachment: Vec<u8>,
+    pub final_def_attachment: String,
     pub final_def_outcome: Option<bool>,
     pub final_def_comment: Option<String>,
     pub final_def_grade: Option<BigDecimal>,
@@ -128,7 +128,7 @@ pub struct NewSysUser<'a> {
     pub user_login: &'a str,
     pub user_password_hash: &'a [u8],
     pub user_password_salt: &'a [u8],
-    pub user_avatar: Option<&'a [u8]>,
+    pub user_avatar: Option<&'a str>,
 }
 
 #[derive(Insertable, Debug)]
@@ -183,7 +183,7 @@ pub struct NewStudent<'a> {
     pub topic_id: Option<i32>,
     pub major_id: i32,
     pub student_name: &'a str,
-    pub assn_time: DateTime<Utc>,
+    pub assn_time: Option<DateTime<Utc>>,
 }
 
 #[derive(Insertable, Debug)]
@@ -201,7 +201,7 @@ pub struct NewProgressReport<'a> {
     pub user_id: i32,
     pub prog_report_type: i16,
     pub prog_report_time: DateTime<Utc>,
-    pub prog_report_attachment: &'a [u8],
+    pub prog_report_attachment: &'a str,
     pub prog_report_outcome: i16,
     pub prog_report_comment: Option<&'a str>,
     pub prog_report_grade: Option<BigDecimal>,
@@ -215,7 +215,7 @@ pub struct NewFinalDefense<'a> {
     pub user_id: i32,
     pub def_user_id: i32,
     pub final_def_time: DateTime<Utc>,
-    pub final_def_attachment: &'a [u8],
+    pub final_def_attachment: &'a str,
     pub final_def_outcome: Option<bool>,
     pub final_def_comment: Option<&'a str>,
     pub final_def_grade: Option<BigDecimal>,

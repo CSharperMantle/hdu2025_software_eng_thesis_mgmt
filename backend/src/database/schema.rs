@@ -21,7 +21,7 @@ diesel::table! {
         user_id -> Int4,
         def_user_id -> Int4,
         final_def_time -> Timestamptz,
-        final_def_attachment -> Bytea,
+        final_def_attachment -> Text,
         final_def_outcome -> Nullable<Bool>,
         final_def_comment -> Nullable<Text>,
         final_def_grade -> Nullable<Numeric>,
@@ -49,7 +49,7 @@ diesel::table! {
         user_id -> Int4,
         prog_report_type -> Int2,
         prog_report_time -> Timestamptz,
-        prog_report_attachment -> Bytea,
+        prog_report_attachment -> Text,
         prog_report_outcome -> Int2,
         prog_report_comment -> Nullable<Text>,
         prog_report_grade -> Nullable<Numeric>,
@@ -63,7 +63,7 @@ diesel::table! {
         major_id -> Int4,
         #[max_length = 16]
         student_name -> Varchar,
-        assn_time -> Timestamptz,
+        assn_time -> Nullable<Timestamptz>,
     }
 }
 
@@ -80,7 +80,7 @@ diesel::table! {
         user_login -> Varchar,
         user_password_hash -> Bytea,
         user_password_salt -> Bytea,
-        user_avatar -> Nullable<Bytea>,
+        user_avatar -> Nullable<Text>,
     }
 }
 
