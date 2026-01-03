@@ -1,5 +1,5 @@
 use actix_session::Session;
-use actix_web::{HttpResponse, Responder, ResponseError, get, patch, post, web};
+use actix_web::{HttpResponse, ResponseError, get, patch, post, web};
 use backend_database::DbPool;
 use backend_database::model::*;
 use diesel::prelude::*;
