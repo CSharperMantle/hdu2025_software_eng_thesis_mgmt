@@ -111,6 +111,10 @@ paths:
       responses:
         "201":
           description: 用户创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGetResponse"
         "400":
           description: 请求体格式错误
         "401":
@@ -969,8 +973,13 @@ components:
         name:
           type: string
           description: |-
-            用户真实姓名，身份为 `student`、`teacher`、`defense_board` 时必填
+            用户真实姓名，身份为 `student`、`teacher` 时必填
           example: "张吉惟"
+        major_id:
+          type: integer
+          description: |-
+            专业序号，身份为 `student` 时必填
+          example: 1
         avatar:
           type: string
           description: 用户头像 Data URI

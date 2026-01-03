@@ -11,7 +11,7 @@ create table SysUser (
    user_login           VARCHAR(16)          unique not null,
    user_password_hash   BYTEA                not null,
    user_password_salt   BYTEA                not null,
-   user_avatar          BYTEA                null,
+   user_avatar          TEXT                 null,
    constraint PK_SYSUSER primary key (user_id)
 );
 
@@ -163,7 +163,7 @@ create table Student (
    topic_id             INT4                 null,
    major_id             INT4                 not null,
    student_name         VARCHAR(16)          not null,
-   assn_time            TIMESTAMP WITH TIME ZONE not null,
+   assn_time            TIMESTAMP WITH TIME ZONE null,
    constraint PK_STUDENT primary key (user_id),
    constraint FK_STUDENT_ASSIGNMEN_TOPIC foreign key (topic_id)
       references Topic (topic_id)
@@ -245,7 +245,7 @@ create table ProgressReport (
    prog_report_type       INT2               not null
       constraint CKC_PROG_REPORT_TYPE_PROGRESS check (prog_report_type in (0,1)),
    prog_report_time       TIMESTAMP WITH TIME ZONE not null,
-   prog_report_attachment BYTEA              not null,
+   prog_report_attachment TEXT               not null,
    prog_report_outcome    INT2               not null default 0
       constraint CKC_PROG_REPORT_OUTCO_PROGRESS check (prog_report_outcome in (0,1,2)),
    prog_report_comment    TEXT               null,
@@ -289,7 +289,7 @@ create table FinalDefense (
    user_id              INT4                 not null,
    Def_user_id          INT4                 not null,
    final_def_time       TIMESTAMP WITH TIME ZONE not null,
-   final_def_attachment BYTEA                not null,
+   final_def_attachment TEXT                 not null,
    final_def_outcome    BOOL                 null,
    final_def_comment    TEXT                 null,
    final_def_grade      DECIMAL              null,

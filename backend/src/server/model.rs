@@ -107,7 +107,7 @@ pub struct UserGetResponse {
     pub id: i32,
     pub username: String,
     pub role: UserRole,
-    pub name: String,
+    pub name: Option<String>,
     pub avatar: Option<String>,
 }
 
@@ -124,6 +124,7 @@ pub struct UserPostRequest {
     pub password: String,
     pub role: UserRole,
     pub name: Option<String>,
+    pub major_id: Option<i32>,
     pub avatar: Option<String>,
 }
 
@@ -297,6 +298,15 @@ pub enum ApiError {
     BadRequest(String),
     Conflict(String),
     InternalServerError(String),
+}
+
+impl From<diesel::result::Error> for ApiError {
+    fn from(err: diesel::result::Error) -> Self {
+        match err {
+            diesel::result::Error::NotFound => ApiError::NotFound,
+            _ => ApiError::InternalServerError(format!("Database error: {}", err)),
+        }
+    }
 }
 
 impl fmt::Display for ApiError {

@@ -1,68 +1,47 @@
 use actix_session::Session;
 use actix_web::{HttpResponse, Responder, ResponseError, get, patch, post, web};
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
-};
 use backend_database::DbPool;
 use backend_database::model::*;
 use diesel::prelude::*;
 use serde::Deserialize;
+use str_macro::str;
 
+use crate::helper::*;
+use crate::map_schema_role;
 use crate::model::*;
 
-#[get("/api/ping")]
-pub async fn ping() -> impl Responder {
-    HttpResponse::Ok().json("pong".to_string())
+#[get("/ping")]
+pub async fn ping() -> HttpResponse {
+    HttpResponse::Ok().json(str!("pong"))
 }
 
-macro_rules! for_each_role {
-    ($conn:expr, $needle:expr, $default:expr $(,)?) => {
-        $default
-    };
-
-    ($conn:expr, $needle:expr, $default:expr,
-     $table_dsl:path => $table_struct:ty => $rhs:expr;
-     $($rest:tt)*
-    ) => {
-        if $table_dsl.find($needle).first::<$table_struct>($conn).is_ok() {
-            $rhs
-        } else {
-            for_each_role!($conn, $needle, $default, $($rest)*)
-        }
-    };
-}
-
-#[post("/api/login")]
+#[post("/login")]
 pub async fn login(
     pool: web::Data<DbPool>,
     session: Session,
     req: web::Json<LoginRequest>,
-) -> Result<impl Responder, impl ResponseError> {
+) -> Result<HttpResponse, impl ResponseError> {
     use backend_database::schema;
 
-    let mut conn = pool.get().map_err(|_| {
-        ApiError::InternalServerError("Failed to get database connection".to_string())
-    })?;
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
     let user = schema::sysuser::dsl::sysuser
         .filter(schema::sysuser::columns::user_login.eq(&req.username))
         .first::<SysUser>(&mut conn)
         .map_err(|_| ApiError::Unauthorized)?;
 
-    let salt = SaltString::encode_b64(&user.user_password_salt)
-        .map_err(|_| ApiError::InternalServerError("Failed to encode password salt".to_string()))?;
-    let hash = Argon2::default()
-        .hash_password(req.password.as_bytes(), &salt)
-        .map_err(|_| ApiError::InternalServerError("Failed to hash password".to_string()))?
-        .hash
-        .ok_or(ApiError::InternalServerError(
-            "Failed to get password hash".to_string(),
-        ))?;
+    let password_good = verify_password(
+        &req.password,
+        &user.user_password_hash,
+        &user.user_password_salt,
+    )
+    .map_err(|_| ApiError::InternalServerError(str!("Failed to verify password")))?;
 
-    if hash.as_bytes() == user.user_password_hash.as_slice() {
-        let auth_info = for_each_role!(
-            &mut conn, user.user_id, Err(ApiError::InternalServerError("User not in any role".to_string())),
-            schema::sysadmin::dsl::sysadmin  => SysAdmin => Ok(AuthInfo::SysAdmin {
+    if password_good {
+        let auth_info = map_schema_role!(
+            &mut conn, user.user_id, Err(ApiError::InternalServerError(str!("User not in any role"))),
+            schema::sysadmin::dsl::sysadmin => SysAdmin => Ok(AuthInfo::SysAdmin {
                 user_id: user.user_id,
                 username: user.user_login.clone(),
                 impersonating: None,
@@ -92,7 +71,7 @@ pub async fn login(
         session
             .insert(AUTH_INFO_SESSION_KEY, &auth_info)
             .map_err(|_| {
-                ApiError::InternalServerError("Failed to store session information".to_string())
+                ApiError::InternalServerError(str!("Failed to store session information"))
             })?;
 
         Ok(HttpResponse::Ok().finish())
@@ -101,158 +80,234 @@ pub async fn login(
     }
 }
 
-#[post("/api/logout")]
-pub async fn logout(session: Session) -> impl Responder {
+#[post("/logout")]
+pub async fn logout(session: Session) -> Result<HttpResponse, impl ResponseError> {
     if session.contains_key(AUTH_INFO_SESSION_KEY) {
         session.purge();
-        HttpResponse::Ok().finish()
+        Ok(HttpResponse::Ok().finish())
     } else {
-        ApiError::Unauthorized.error_response()
+        Err(ApiError::Unauthorized)
     }
 }
 
-#[get("/api/user")]
-pub async fn get_current_user(_pool: web::Data<DbPool>, _session: Session) -> impl Responder {
+#[get("/user")]
+pub async fn get_current_user(_pool: web::Data<DbPool>, _session: Session) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[patch("/api/user")]
+#[patch("/user")]
 pub async fn update_current_user(
     _pool: web::Data<DbPool>,
     _session: Session,
     _req: web::Json<UserPatchRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[post("/api/user")]
+#[post("/user")]
 pub async fn create_user(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _req: web::Json<UserPostRequest>,
-) -> impl Responder {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    req: web::Json<UserPostRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+    if !is_session_admin(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Can't deserialize auth info")))?
+    {
+        return Err(ApiError::Forbidden);
+    }
+
+    let (hash, salt) = hash_password(&req.password)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to hash password")))?;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+    let new_sys_user = conn.build_transaction().read_write().run(|conn| {
+        let new_sys_user = diesel::insert_into(schema::sysuser::dsl::sysuser)
+            .values(NewSysUser {
+                user_login: &req.username,
+                user_password_hash: &hash,
+                user_password_salt: &salt,
+                user_avatar: req.avatar.as_deref(),
+            })
+            .get_result::<SysUser>(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to create new user")))?;
+
+        match req.role {
+            UserRole::Admin => diesel::insert_into(schema::sysadmin::dsl::sysadmin)
+                .values(NewSysAdmin {
+                    user_id: new_sys_user.user_id,
+                })
+                .execute(conn),
+            UserRole::Student => diesel::insert_into(schema::student::dsl::student)
+                .values(NewStudent {
+                    user_id: new_sys_user.user_id,
+                    topic_id: None,
+                    major_id: req.major_id.ok_or(ApiError::BadRequest(str!(
+                        "Major ID is required for student role"
+                    )))?,
+                    student_name: &(req.name.clone().ok_or(ApiError::BadRequest(str!(
+                        "Name is required for student role"
+                    )))?),
+                    assn_time: None,
+                })
+                .execute(conn),
+            UserRole::Teacher => diesel::insert_into(schema::teacher::dsl::teacher)
+                .values(NewTeacher {
+                    user_id: new_sys_user.user_id,
+                    teacher_name: &(req.name.clone().ok_or(ApiError::BadRequest(str!(
+                        "Name is required for teacher role"
+                    )))?),
+                })
+                .execute(conn),
+            UserRole::DefenseBoard => diesel::insert_into(schema::defenseboard::dsl::defenseboard)
+                .values(NewDefenseBoard {
+                    user_id: new_sys_user.user_id,
+                })
+                .execute(conn),
+            UserRole::Office => diesel::insert_into(schema::office::dsl::office)
+                .values(NewOffice {
+                    user_id: new_sys_user.user_id,
+                })
+                .execute(conn),
+        }
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to assign role")))?;
+        Ok::<_, ApiError>(new_sys_user)
+    })?;
+
+    Ok(HttpResponse::Ok().json(UserGetResponse {
+        id: new_sys_user.user_id,
+        username: new_sys_user.user_login,
+        role: req.role,
+        name: None,
+        avatar: None,
+    }))
 }
 
-#[get("/api/topics")]
+#[get("/topics")]
 pub async fn get_topics(
     _pool: web::Data<DbPool>,
     _session: Session,
     _query: web::Query<PaginationQuery>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[post("/api/topics")]
+#[post("/topics")]
 pub async fn create_topic(
     _pool: web::Data<DbPool>,
     _session: Session,
     _req: web::Json<TopicsPostRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[get("/api/topics/search")]
+#[get("/topics/search")]
 pub async fn search_topics(
     _pool: web::Data<DbPool>,
     _session: Session,
     _query: web::Query<SearchQuery>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[get("/api/topics/{topic_id}")]
+#[get("/topics/{topic_id}")]
 pub async fn get_topic_detail(
     _pool: web::Data<DbPool>,
     _session: Session,
     _topic_id: web::Path<i32>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[patch("/api/topics/{topic_id}")]
+#[patch("/topics/{topic_id}")]
 pub async fn update_topic(
     _pool: web::Data<DbPool>,
     _session: Session,
     _topic_id: web::Path<i32>,
     _req: web::Json<TopicUpdateRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[get("/api/assignments")]
+#[get("/assignments")]
 pub async fn get_assignments(
     _pool: web::Data<DbPool>,
     _session: Session,
     _query: web::Query<PaginationQuery>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[post("/api/assignments")]
+#[post("/assignments")]
 pub async fn create_assignment(
     _pool: web::Data<DbPool>,
     _session: Session,
     _req: web::Json<AssignmentsPostRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[patch("/api/assignments/{student_id}/{topic_id}")]
+#[patch("/assignments/{student_id}/{topic_id}")]
 pub async fn update_assignment_status(
     _pool: web::Data<DbPool>,
     _session: Session,
     _path: web::Path<(i32, i32)>,
     _req: web::Json<AssignmentRecordPatchRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[get("/api/progress_reports")]
-pub async fn get_progress_reports(_pool: web::Data<DbPool>, _session: Session) -> impl Responder {
+#[get("/progress_reports")]
+pub async fn get_progress_reports(_pool: web::Data<DbPool>, _session: Session) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[post("/api/progress_reports")]
+#[post("/progress_reports")]
 pub async fn create_progress_report(
     _pool: web::Data<DbPool>,
     _session: Session,
     _req: web::Json<ProgressReportsPostRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[patch("/api/progress_reports/{report_id}")]
+#[patch("/progress_reports/{report_id}")]
 pub async fn update_progress_report(
     _pool: web::Data<DbPool>,
     _session: Session,
     _report_id: web::Path<i32>,
     _req: web::Json<ProgressReportRecordPatchRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[get("/api/final_defenses")]
-pub async fn get_final_defenses(_pool: web::Data<DbPool>, _session: Session) -> impl Responder {
+#[get("/final_defenses")]
+pub async fn get_final_defenses(_pool: web::Data<DbPool>, _session: Session) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[post("/api/final_defenses")]
+#[post("/final_defenses")]
 pub async fn create_final_defense(
     _pool: web::Data<DbPool>,
     _session: Session,
     _req: web::Json<FinalDefensesPostRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
-#[patch("/api/final_defenses/{report_id}")]
+#[patch("/final_defenses/{report_id}")]
 pub async fn update_final_defense(
     _pool: web::Data<DbPool>,
     _session: Session,
     _report_id: web::Path<i32>,
     _req: web::Json<FinalDefensesRecordPatchRequest>,
-) -> impl Responder {
+) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
