@@ -95,17 +95,150 @@ pub async fn logout(session: Session) -> Result<HttpResponse, impl ResponseError
 }
 
 #[get("/user")]
-pub async fn get_current_user(_pool: web::Data<DbPool>, _session: Session) -> HttpResponse {
-    HttpResponse::Ok().finish()
+pub async fn get_current_user(
+    pool: web::Data<DbPool>,
+    session: Session,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let sys_user = schema::sysuser::dsl::sysuser
+        .filter(schema::sysuser::columns::user_id.eq(user_id))
+        .first::<SysUser>(&mut conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user information")))?;
+
+    // Get user role and name based on role
+    let (role, name) = map_schema_role!(
+        &mut conn, user_id, Err(ApiError::InternalServerError(str!("User not in any role"))),
+        schema::sysadmin::dsl::sysadmin => SysAdmin => {
+            Ok((UserRole::Admin, None))
+        };
+        schema::student::dsl::student => Student => {
+            let student = schema::student::dsl::student
+                .filter(schema::student::columns::user_id.eq(user_id))
+                .first::<Student>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to get student information")))?;
+            Ok((UserRole::Student, Some(student.student_name)))
+        };
+        schema::teacher::dsl::teacher => Teacher => {
+            let teacher = schema::teacher::dsl::teacher
+                .filter(schema::teacher::columns::user_id.eq(user_id))
+                .first::<Teacher>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to get teacher information")))?;
+            Ok((UserRole::Teacher, Some(teacher.teacher_name)))
+        };
+        schema::defenseboard::dsl::defenseboard => DefenseBoard => {
+            Ok((UserRole::DefenseBoard, None))
+        };
+        schema::office::dsl::office => Office => {
+            Ok((UserRole::Office, None))
+        };
+    )?;
+
+    Ok(HttpResponse::Ok().json(UserGetResponse {
+        id: sys_user.user_id,
+        username: sys_user.user_login,
+        role,
+        name,
+        avatar: sys_user.user_avatar,
+    }))
 }
 
 #[patch("/user")]
 pub async fn update_current_user(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _req: web::Json<UserPatchRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    req: web::Json<UserPatchRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    conn.build_transaction().read_write().run(|conn| {
+        if let Some(ref password) = req.password {
+            let (hash, salt) = hash_password(password)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to hash password")))?;
+
+            diesel::update(
+                schema::sysuser::dsl::sysuser.filter(schema::sysuser::columns::user_id.eq(user_id)),
+            )
+            .set((
+                schema::sysuser::columns::user_password_hash.eq(hash),
+                schema::sysuser::columns::user_password_salt.eq(salt),
+            ))
+            .execute(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to update password")))?;
+        }
+
+        if let Some(ref avatar) = req.avatar {
+            diesel::update(
+                schema::sysuser::dsl::sysuser.filter(schema::sysuser::columns::user_id.eq(user_id)),
+            )
+            .set(schema::sysuser::columns::user_avatar.eq(avatar))
+            .execute(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to update avatar")))?;
+        }
+
+        if let Some(ref name) = req.name {
+            // Is student?
+            if diesel::select(diesel::dsl::exists(
+                schema::student::dsl::student.filter(schema::student::columns::user_id.eq(user_id)),
+            ))
+            .get_result::<bool>(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
+            {
+                diesel::update(
+                    schema::student::dsl::student
+                        .filter(schema::student::columns::user_id.eq(user_id)),
+                )
+                .set(schema::student::columns::student_name.eq(name))
+                .execute(conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to update student name"))
+                })?;
+            }
+            // Is teacher?
+            else if diesel::select(diesel::dsl::exists(
+                schema::teacher::dsl::teacher.filter(schema::teacher::columns::user_id.eq(user_id)),
+            ))
+            .get_result::<bool>(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
+            {
+                diesel::update(
+                    schema::teacher::dsl::teacher
+                        .filter(schema::teacher::columns::user_id.eq(user_id)),
+                )
+                .set(schema::teacher::columns::teacher_name.eq(name))
+                .execute(conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to update teacher name"))
+                })?;
+            }
+        }
+
+        Ok::<(), ApiError>(())
+    })?;
+
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[post("/user")]
@@ -131,7 +264,12 @@ pub async fn create_user(
     let mut conn = pool
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
-    let new_sys_user = conn.build_transaction().read_write().run(|conn| {
+    let (new_sys_user, name) = conn.build_transaction().read_write().run(|conn| {
+        let name = match req.role {
+            UserRole::Student | UserRole::Teacher => req.name.clone(),
+            _ => None,
+        };
+
         let new_sys_user = diesel::insert_into(schema::sysuser::dsl::sysuser)
             .values(NewSysUser {
                 user_login: &req.username,
@@ -141,7 +279,6 @@ pub async fn create_user(
             })
             .get_result::<SysUser>(conn)
             .map_err(|_| ApiError::Conflict(str!("Failed to create new user")))?;
-
         match req.role {
             UserRole::Admin => diesel::insert_into(schema::sysadmin::dsl::sysadmin)
                 .values(NewSysAdmin {
@@ -155,18 +292,18 @@ pub async fn create_user(
                     major_id: req.major_id.ok_or(ApiError::BadRequest(str!(
                         "Major ID is required for student role"
                     )))?,
-                    student_name: &(req.name.clone().ok_or(ApiError::BadRequest(str!(
+                    student_name: name.as_deref().ok_or(ApiError::BadRequest(str!(
                         "Name is required for student role"
-                    )))?),
+                    )))?,
                     assn_time: None,
                 })
                 .execute(conn),
             UserRole::Teacher => diesel::insert_into(schema::teacher::dsl::teacher)
                 .values(NewTeacher {
                     user_id: new_sys_user.user_id,
-                    teacher_name: &(req.name.clone().ok_or(ApiError::BadRequest(str!(
+                    teacher_name: name.as_deref().ok_or(ApiError::BadRequest(str!(
                         "Name is required for teacher role"
-                    )))?),
+                    )))?,
                 })
                 .execute(conn),
             UserRole::DefenseBoard => diesel::insert_into(schema::defenseboard::dsl::defenseboard)
@@ -181,17 +318,14 @@ pub async fn create_user(
                 .execute(conn),
         }
         .map_err(|_| ApiError::InternalServerError(str!("Failed to assign role")))?;
-        Ok::<_, ApiError>(new_sys_user)
+        Ok::<_, ApiError>((new_sys_user, name))
     })?;
 
     Ok(HttpResponse::Ok().json(UserGetResponse {
         id: new_sys_user.user_id,
         username: new_sys_user.user_login,
         role: req.role,
-        name: match req.role {
-            UserRole::Student | UserRole::Teacher => req.name.clone(),
-            _ => None,
-        },
+        name,
         avatar: req.avatar.clone(),
     }))
 }
