@@ -11,6 +11,19 @@ use crate::helper::*;
 use crate::map_schema_role;
 use crate::model::*;
 
+#[derive(Debug, Deserialize)]
+struct PaginationQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchQuery {
+    pub keyword: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 #[get("/ping")]
 pub async fn ping() -> HttpResponse {
     HttpResponse::Ok().json(str!("pong"))
@@ -1317,62 +1330,724 @@ pub async fn update_assignment_status(
 }
 
 #[get("/progress_reports")]
-pub async fn get_progress_reports(_pool: web::Data<DbPool>, _session: Session) -> HttpResponse {
-    HttpResponse::Ok().finish()
+pub async fn get_progress_reports(
+    pool: web::Data<DbPool>,
+    session: Session,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    match user_role {
+        AuthInfoUserRole::Student | AuthInfoUserRole::Teacher => {}
+        _ => return Err(ApiError::Forbidden),
+    }
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let mut base = schema::progressreport::table
+        .inner_join(schema::student::table)
+        .inner_join(schema::topic::table)
+        .into_boxed();
+
+    match user_role {
+        AuthInfoUserRole::Student => {
+            base = base.filter(schema::progressreport::columns::user_id.eq(user_id));
+        }
+        AuthInfoUserRole::Teacher => {
+            base = base.filter(schema::topic::columns::user_id.eq(user_id));
+        }
+        _ => unreachable!(),
+    }
+
+    let rows = base
+        .order(schema::progressreport::columns::prog_report_time.desc())
+        .select((
+            schema::progressreport::all_columns,
+            schema::student::columns::student_name,
+        ))
+        .load::<(ProgressReport, String)>(&mut conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to load progress reports")))?;
+
+    if rows.is_empty() {
+        return Err(ApiError::NotFound);
+    }
+
+    let reports = rows
+        .into_iter()
+        .map(|(r, student_name)| {
+            Ok::<_, ApiError>(ProgressReportDetailResponse {
+                prog_report_id: r.prog_report_id,
+                topic_id: r.topic_id,
+                student_id: r.user_id,
+                student_name,
+                prog_report_type: ProgressReportType::try_from(r.prog_report_type).map_err(
+                    |_| ApiError::InternalServerError(str!("Invalid progress report type")),
+                )?,
+                prog_report_time: r.prog_report_time,
+                prog_report_attachment: r.prog_report_attachment,
+                prog_report_outcome: ProgressOutcome::try_from(r.prog_report_outcome)
+                    .map_err(|_| ApiError::InternalServerError(str!("Invalid progress outcome")))?,
+                prog_report_comment: r.prog_report_comment,
+                prog_report_grade: r.prog_report_grade,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(HttpResponse::Ok().json(ProgressReportsGetResponse { reports }))
 }
 
 #[post("/progress_reports")]
 pub async fn create_progress_report(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _req: web::Json<ProgressReportsPostRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    req: web::Json<ProgressReportsPostRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+    if !matches!(user_role, AuthInfoUserRole::Student) {
+        return Err(ApiError::Forbidden);
+    }
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    conn.build_transaction().read_write().run(|conn| {
+        let student = schema::student::dsl::student
+            .find(user_id)
+            .first::<Student>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+        let topic_id = student
+            .topic_id
+            .ok_or_else(|| ApiError::Conflict(str!("Student has no assigned topic")))?;
+
+        // Determine report type: proposal first, then midterm after proposal passed.
+        let has_passed_proposal = diesel::select(diesel::dsl::exists(
+            schema::progressreport::dsl::progressreport
+                .filter(schema::progressreport::columns::user_id.eq(user_id))
+                .filter(
+                    schema::progressreport::columns::prog_report_type
+                        .eq(ProgressReportType::Proposal as i16),
+                )
+                .filter(
+                    schema::progressreport::columns::prog_report_outcome
+                        .eq(ProgressOutcome::Passed as i16),
+                ),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check proposal status")))?;
+
+        let report_type = if has_passed_proposal {
+            ProgressReportType::Midterm
+        } else {
+            ProgressReportType::Proposal
+        };
+
+        // Enforce: per (student, type) at most one pending and one passed.
+        let has_pending = diesel::select(diesel::dsl::exists(
+            schema::progressreport::dsl::progressreport
+                .filter(schema::progressreport::columns::user_id.eq(user_id))
+                .filter(schema::progressreport::columns::prog_report_type.eq(report_type as i16))
+                .filter(
+                    schema::progressreport::columns::prog_report_outcome
+                        .eq(ProgressOutcome::NoConclusion as i16),
+                ),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check pending reports")))?;
+        if has_pending {
+            return Err(ApiError::Conflict(str!("A pending report already exists")));
+        }
+
+        let has_passed = diesel::select(diesel::dsl::exists(
+            schema::progressreport::dsl::progressreport
+                .filter(schema::progressreport::columns::user_id.eq(user_id))
+                .filter(schema::progressreport::columns::prog_report_type.eq(report_type as i16))
+                .filter(
+                    schema::progressreport::columns::prog_report_outcome
+                        .eq(ProgressOutcome::Passed as i16),
+                ),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check passed reports")))?;
+        if has_passed {
+            return Err(ApiError::Conflict(str!("A passed report already exists")));
+        }
+
+        diesel::insert_into(schema::progressreport::dsl::progressreport)
+            .values(NewProgressReport {
+                topic_id,
+                user_id,
+                prog_report_type: report_type as i16,
+                prog_report_time: Utc::now(),
+                prog_report_attachment: &req.attachment,
+                prog_report_outcome: ProgressOutcome::NoConclusion as i16,
+                prog_report_comment: None,
+                prog_report_grade: None,
+            })
+            .execute(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to create progress report")))?;
+
+        Ok::<_, ApiError>(())
+    })?;
+
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[patch("/progress_reports/{report_id}")]
 pub async fn update_progress_report(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _report_id: web::Path<i32>,
-    _req: web::Json<ProgressReportRecordPatchRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    report_id: web::Path<i32>,
+    req: web::Json<ProgressReportRecordPatchRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+    if !matches!(user_role, AuthInfoUserRole::Teacher) {
+        return Err(ApiError::Forbidden);
+    }
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let result = conn.build_transaction().read_write().run(|conn| {
+        let (report, student_name, topic_name, teacher_id): (ProgressReport, String, String, i32) =
+            schema::progressreport::table
+                .inner_join(schema::student::table)
+                .inner_join(schema::topic::table)
+                .filter(schema::progressreport::columns::prog_report_id.eq(*report_id))
+                .select((
+                    schema::progressreport::all_columns,
+                    schema::student::columns::student_name,
+                    schema::topic::columns::topic_name,
+                    schema::topic::columns::user_id,
+                ))
+                .first(conn)
+                .map_err(|_| ApiError::NotFound)?;
+
+        if teacher_id != user_id {
+            return Err(ApiError::Forbidden);
+        }
+
+        // Enforce per (student, type): at most one pending + one passed.
+        match req.outcome {
+            ProgressOutcome::NoConclusion => {
+                let other_pending = diesel::select(diesel::dsl::exists(
+                    schema::progressreport::dsl::progressreport
+                        .filter(schema::progressreport::columns::user_id.eq(report.user_id))
+                        .filter(
+                            schema::progressreport::columns::prog_report_type
+                                .eq(report.prog_report_type),
+                        )
+                        .filter(
+                            schema::progressreport::columns::prog_report_outcome
+                                .eq(ProgressOutcome::NoConclusion as i16),
+                        )
+                        .filter(
+                            schema::progressreport::columns::prog_report_id
+                                .ne(report.prog_report_id),
+                        ),
+                ))
+                .get_result::<bool>(conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to check pending reports"))
+                })?;
+                if other_pending {
+                    return Err(ApiError::Conflict(str!(
+                        "Another pending report already exists"
+                    )));
+                }
+            }
+            ProgressOutcome::Passed => {
+                let other_passed = diesel::select(diesel::dsl::exists(
+                    schema::progressreport::dsl::progressreport
+                        .filter(schema::progressreport::columns::user_id.eq(report.user_id))
+                        .filter(
+                            schema::progressreport::columns::prog_report_type
+                                .eq(report.prog_report_type),
+                        )
+                        .filter(
+                            schema::progressreport::columns::prog_report_outcome
+                                .eq(ProgressOutcome::Passed as i16),
+                        )
+                        .filter(
+                            schema::progressreport::columns::prog_report_id
+                                .ne(report.prog_report_id),
+                        ),
+                ))
+                .get_result::<bool>(conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to check passed reports"))
+                })?;
+                if other_passed {
+                    return Err(ApiError::Conflict(str!(
+                        "Another passed report already exists"
+                    )));
+                }
+            }
+            ProgressOutcome::Rejected => {}
+        }
+
+        diesel::update(schema::progressreport::dsl::progressreport.find(report.prog_report_id))
+            .set((
+                schema::progressreport::columns::prog_report_outcome.eq(req.outcome as i16),
+                schema::progressreport::columns::prog_report_comment.eq(req.comment.clone()),
+                schema::progressreport::columns::prog_report_grade.eq(req.grade.clone()),
+            ))
+            .execute(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to update progress report")))?;
+
+        let updated = schema::progressreport::dsl::progressreport
+            .find(report.prog_report_id)
+            .first::<ProgressReport>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+
+        let _ = topic_name; // already validated join; keep for symmetry with final-defense handler
+
+        Ok::<_, ApiError>(ProgressReportDetailResponse {
+            prog_report_id: updated.prog_report_id,
+            topic_id: updated.topic_id,
+            student_id: updated.user_id,
+            student_name,
+            prog_report_type: ProgressReportType::try_from(updated.prog_report_type)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid progress report type")))?,
+            prog_report_time: updated.prog_report_time,
+            prog_report_attachment: updated.prog_report_attachment,
+            prog_report_outcome: ProgressOutcome::try_from(updated.prog_report_outcome)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid progress outcome")))?,
+            prog_report_comment: updated.prog_report_comment,
+            prog_report_grade: updated.prog_report_grade,
+        })
+    })?;
+
+    Ok(HttpResponse::Ok().json(result))
 }
 
 #[get("/final_defenses")]
-pub async fn get_final_defenses(_pool: web::Data<DbPool>, _session: Session) -> HttpResponse {
-    HttpResponse::Ok().finish()
+pub async fn get_final_defenses(
+    pool: web::Data<DbPool>,
+    session: Session,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    match user_role {
+        AuthInfoUserRole::Student | AuthInfoUserRole::Teacher | AuthInfoUserRole::DefenseBoard => {}
+        _ => return Err(ApiError::Forbidden),
+    }
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let mut base = schema::finaldefense::table
+        .inner_join(schema::student::table)
+        .inner_join(schema::topic::table)
+        .into_boxed();
+
+    match user_role {
+        AuthInfoUserRole::Student => {
+            base = base.filter(schema::finaldefense::columns::user_id.eq(user_id));
+        }
+        AuthInfoUserRole::Teacher => {
+            base = base.filter(schema::topic::columns::user_id.eq(user_id));
+        }
+        AuthInfoUserRole::DefenseBoard => {
+            base = base.filter(schema::finaldefense::columns::def_user_id.eq(user_id));
+        }
+        _ => unreachable!(),
+    }
+
+    let rows = base
+        .order(schema::finaldefense::columns::final_def_time.desc())
+        .select((
+            schema::finaldefense::all_columns,
+            schema::student::columns::student_name,
+            schema::topic::columns::topic_name,
+        ))
+        .load::<(FinalDefense, String, String)>(&mut conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to load final defenses")))?;
+
+    if rows.is_empty() {
+        return Err(ApiError::NotFound);
+    }
+
+    let defenses = rows
+        .into_iter()
+        .map(|(d, student_name, topic_name)| FinalDefenseDetails {
+            final_def_id: d.final_def_id,
+            topic_id: d.topic_id,
+            topic_name,
+            student_id: d.user_id,
+            student_name,
+            defense_board_id: d.def_user_id,
+            final_def_time: d.final_def_time,
+            final_def_attachment: d.final_def_attachment,
+            final_def_outcome: d.final_def_outcome,
+            final_def_comment: d.final_def_comment,
+            final_def_grade: d.final_def_grade,
+        })
+        .collect::<Vec<_>>();
+
+    Ok(HttpResponse::Ok().json(FinalDefensesGetResponse { defenses }))
 }
 
 #[post("/final_defenses")]
 pub async fn create_final_defense(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _req: web::Json<FinalDefensesPostRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    req: web::Json<FinalDefensesPostRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+    if !matches!(user_role, AuthInfoUserRole::Student) {
+        return Err(ApiError::Forbidden);
+    }
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    conn.build_transaction().read_write().run(|conn| {
+        let student = schema::student::dsl::student
+            .find(user_id)
+            .first::<Student>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+        let topic_id = student
+            .topic_id
+            .ok_or_else(|| ApiError::Conflict(str!("Student has no assigned topic")))?;
+
+        // Enforce: per student, at most one pending (NULL) and one passed (true).
+        let has_pending = diesel::select(diesel::dsl::exists(
+            schema::finaldefense::dsl::finaldefense
+                .filter(schema::finaldefense::columns::user_id.eq(user_id))
+                .filter(schema::finaldefense::columns::final_def_outcome.is_null()),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check pending defenses")))?;
+        if has_pending {
+            return Err(ApiError::Conflict(str!(
+                "A pending final defense already exists"
+            )));
+        }
+
+        let has_passed = diesel::select(diesel::dsl::exists(
+            schema::finaldefense::dsl::finaldefense
+                .filter(schema::finaldefense::columns::user_id.eq(user_id))
+                .filter(schema::finaldefense::columns::final_def_outcome.eq(true)),
+        ))
+        .get_result::<bool>(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check passed defenses")))?;
+        if has_passed {
+            return Err(ApiError::Conflict(str!(
+                "A passed final defense already exists"
+            )));
+        }
+
+        diesel::insert_into(schema::finaldefense::dsl::finaldefense)
+            .values(NewFinalDefense {
+                topic_id,
+                user_id,
+                def_user_id: None,
+                final_def_time: Utc::now(),
+                final_def_attachment: &req.attachment,
+                final_def_outcome: None,
+                final_def_comment: None,
+                final_def_grade: None,
+            })
+            .execute(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to create final defense")))?;
+
+        Ok::<_, ApiError>(())
+    })?;
+
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[patch("/final_defenses/{report_id}")]
 pub async fn update_final_defense(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _report_id: web::Path<i32>,
-    _req: web::Json<FinalDefensesRecordPatchRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
-}
+    pool: web::Data<DbPool>,
+    session: Session,
+    report_id: web::Path<i32>,
+    req: web::Json<FinalDefensesRecordPatchRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
 
-#[derive(Debug, Deserialize)]
-struct PaginationQuery {
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
-}
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
 
-#[derive(Debug, Deserialize)]
-struct SearchQuery {
-    pub keyword: Option<String>,
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let result = conn.build_transaction().read_write().run(|conn| {
+        match (user_role, req.into_inner()) {
+            (AuthInfoUserRole::Teacher, FinalDefensesRecordPatchRequest::Teacher(req)) => {
+                // Teacher reviews the request: reject -> delete; approve -> assign least-loaded defense group.
+                let (defense, student_name, topic_name, teacher_id): (
+                    FinalDefense,
+                    String,
+                    String,
+                    i32,
+                ) = schema::finaldefense::table
+                    .inner_join(schema::student::table)
+                    .inner_join(schema::topic::table)
+                    .filter(schema::finaldefense::columns::final_def_id.eq(*report_id))
+                    .select((
+                        schema::finaldefense::all_columns,
+                        schema::student::columns::student_name,
+                        schema::topic::columns::topic_name,
+                        schema::topic::columns::user_id,
+                    ))
+                    .first(conn)
+                    .map_err(|_| ApiError::NotFound)?;
+
+                if teacher_id != user_id {
+                    return Err(ApiError::Forbidden);
+                }
+
+                // Only allow reviewing pending applications.
+                if defense.final_def_outcome.is_some() {
+                    return Err(ApiError::Conflict(str!("Final defense already finalized")));
+                }
+
+                if !req.approved {
+                    diesel::delete(
+                        schema::finaldefense::dsl::finaldefense.find(defense.final_def_id),
+                    )
+                    .execute(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to delete final defense"))
+                    })?;
+
+                    // Return details of the deleted record (pre-delete).
+                    return Ok(FinalDefenseDetails {
+                        final_def_id: defense.final_def_id,
+                        topic_id: defense.topic_id,
+                        topic_name,
+                        student_id: defense.user_id,
+                        student_name,
+                        defense_board_id: defense.def_user_id,
+                        final_def_time: defense.final_def_time,
+                        final_def_attachment: defense.final_def_attachment,
+                        final_def_outcome: defense.final_def_outcome,
+                        final_def_comment: defense.final_def_comment,
+                        final_def_grade: defense.final_def_grade,
+                    });
+                }
+
+                if defense.def_user_id.is_some() {
+                    return Err(ApiError::Conflict(str!("Final defense already assigned")));
+                }
+
+                // Choose the defense group with the least number of pending tasks.
+                // (Pending task = assigned to a defense group AND final outcome is NULL.)
+                // We compute counts via GROUP BY, then pick the minimum in Rust to keep the Diesel types simple.
+                use std::collections::HashMap;
+
+                let defense_board_ids = schema::defenseboard::dsl::defenseboard
+                    .select(schema::defenseboard::columns::user_id)
+                    .order(schema::defenseboard::columns::user_id.asc())
+                    .load::<i32>(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to load defense boards"))
+                    })?;
+                if defense_board_ids.is_empty() {
+                    return Err(ApiError::Conflict(str!("No defense board available")));
+                }
+
+                let pending_counts = schema::finaldefense::dsl::finaldefense
+                    .filter(schema::finaldefense::columns::final_def_outcome.is_null())
+                    .filter(schema::finaldefense::columns::def_user_id.is_not_null())
+                    .group_by(schema::finaldefense::columns::def_user_id)
+                    .select((
+                        schema::finaldefense::columns::def_user_id,
+                        diesel::dsl::count_star(),
+                    ))
+                    .load::<(Option<i32>, i64)>(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to count defense board tasks"))
+                    })?;
+
+                let mut count_by_board: HashMap<i32, i64> = HashMap::new();
+                for (board_id, c) in pending_counts {
+                    if let Some(board_id) = board_id {
+                        count_by_board.insert(board_id, c);
+                    }
+                }
+
+                let mut assigned_defense_board_id = defense_board_ids[0];
+                let mut assigned_count =
+                    *count_by_board.get(&assigned_defense_board_id).unwrap_or(&0);
+                for board_id in defense_board_ids.into_iter().skip(1) {
+                    let c = *count_by_board.get(&board_id).unwrap_or(&0);
+                    if c < assigned_count {
+                        assigned_defense_board_id = board_id;
+                        assigned_count = c;
+                    }
+                }
+
+                diesel::update(schema::finaldefense::dsl::finaldefense.find(defense.final_def_id))
+                    .set(
+                        schema::finaldefense::columns::def_user_id
+                            .eq(Some(assigned_defense_board_id)),
+                    )
+                    .execute(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to assign defense board"))
+                    })?;
+
+                let updated = schema::finaldefense::dsl::finaldefense
+                    .find(defense.final_def_id)
+                    .first::<FinalDefense>(conn)
+                    .map_err(|_| ApiError::NotFound)?;
+
+                Ok(FinalDefenseDetails {
+                    final_def_id: updated.final_def_id,
+                    topic_id: updated.topic_id,
+                    topic_name,
+                    student_id: updated.user_id,
+                    student_name,
+                    defense_board_id: updated.def_user_id,
+                    final_def_time: updated.final_def_time,
+                    final_def_attachment: updated.final_def_attachment,
+                    final_def_outcome: updated.final_def_outcome,
+                    final_def_comment: updated.final_def_comment,
+                    final_def_grade: updated.final_def_grade,
+                })
+            }
+            (
+                AuthInfoUserRole::DefenseBoard,
+                FinalDefensesRecordPatchRequest::DefenseBoard(req),
+            ) => {
+                let (defense, student_name, topic_name): (FinalDefense, String, String) =
+                    schema::finaldefense::table
+                        .inner_join(schema::student::table)
+                        .inner_join(schema::topic::table)
+                        .filter(schema::finaldefense::columns::final_def_id.eq(*report_id))
+                        .select((
+                            schema::finaldefense::all_columns,
+                            schema::student::columns::student_name,
+                            schema::topic::columns::topic_name,
+                        ))
+                        .first(conn)
+                        .map_err(|_| ApiError::NotFound)?;
+
+                if defense.def_user_id != Some(user_id) {
+                    return Err(ApiError::Forbidden);
+                }
+
+                // Enforce: per student, at most one passed (true).
+                if req.outcome {
+                    let other_passed = diesel::select(diesel::dsl::exists(
+                        schema::finaldefense::dsl::finaldefense
+                            .filter(schema::finaldefense::columns::user_id.eq(defense.user_id))
+                            .filter(schema::finaldefense::columns::final_def_outcome.eq(true))
+                            .filter(
+                                schema::finaldefense::columns::final_def_id
+                                    .ne(defense.final_def_id),
+                            ),
+                    ))
+                    .get_result::<bool>(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to check passed defenses"))
+                    })?;
+                    if other_passed {
+                        return Err(ApiError::Conflict(str!(
+                            "Another passed final defense already exists"
+                        )));
+                    }
+                }
+
+                diesel::update(schema::finaldefense::dsl::finaldefense.find(defense.final_def_id))
+                    .set((
+                        schema::finaldefense::columns::final_def_outcome.eq(Some(req.outcome)),
+                        schema::finaldefense::columns::final_def_comment
+                            .eq(Some(req.comment.clone())),
+                        schema::finaldefense::columns::final_def_grade.eq(Some(req.grade.clone())),
+                    ))
+                    .execute(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to update final defense"))
+                    })?;
+
+                let updated = schema::finaldefense::dsl::finaldefense
+                    .find(defense.final_def_id)
+                    .first::<FinalDefense>(conn)
+                    .map_err(|_| ApiError::NotFound)?;
+
+                Ok(FinalDefenseDetails {
+                    final_def_id: updated.final_def_id,
+                    topic_id: updated.topic_id,
+                    topic_name,
+                    student_id: updated.user_id,
+                    student_name,
+                    defense_board_id: updated.def_user_id,
+                    final_def_time: updated.final_def_time,
+                    final_def_attachment: updated.final_def_attachment,
+                    final_def_outcome: updated.final_def_outcome,
+                    final_def_comment: updated.final_def_comment,
+                    final_def_grade: updated.final_def_grade,
+                })
+            }
+            (AuthInfoUserRole::Teacher, _) => Err(ApiError::BadRequest(str!(
+                "Teacher patch request must be { approved: bool }"
+            ))),
+            (AuthInfoUserRole::DefenseBoard, _) => Err(ApiError::BadRequest(str!(
+                "Defense board patch request must be { outcome, comment, grade }"
+            ))),
+            _ => Err(ApiError::Forbidden),
+        }
+    })?;
+
+    Ok(HttpResponse::Ok().json(result))
 }
