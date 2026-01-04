@@ -8,6 +8,7 @@
 * [../docs/api/thesis_mgmt.yml](../docs/api/thesis_mgmt.yml) 里面还有一些 TODO；
 * 考虑把测试数据放到 migrations 里面自动创建？
   * PowerDesigner 有测试数据生成功能，待试验
+* GET `/topics/search?keyword=` 只检索标题，不检索内容
 
 ```sql
 INSERT INTO major(/* major_id, */ major_name)
