@@ -2,6 +2,7 @@ use actix_session::Session;
 use actix_web::{HttpResponse, ResponseError, get, patch, post, web};
 use backend_database::DbPool;
 use backend_database::model::*;
+use chrono::Utc;
 use diesel::prelude::*;
 use serde::Deserialize;
 use str_macro::str;
@@ -174,18 +175,25 @@ pub async fn update_current_user(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     conn.build_transaction().read_write().run(|conn| {
+        let mut changeset = SysUserChangeset {
+            user_password_hash: None,
+            user_password_salt: None,
+            user_avatar: req.avatar.clone().map(Some),
+        };
+
         if let Some(ref password) = req.password {
             let (hash, salt) = hash_password(password)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to hash password")))?;
-
-            diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
-                .set((
-                    schema::sysuser::columns::user_password_hash.eq(hash),
-                    schema::sysuser::columns::user_password_salt.eq(salt),
-                ))
-                .execute(conn)
-                .map_err(|_| ApiError::InternalServerError(str!("Failed to update password")))?;
+            changeset.user_password_hash = Some(hash);
+            changeset.user_password_salt = Some(salt);
         }
+
+        diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
+            .set(changeset)
+            .execute(conn)
+            .map_err(|_| {
+                ApiError::InternalServerError(str!("Failed to update user information"))
+            })?;
 
         if let Some(ref avatar) = req.avatar {
             diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
@@ -339,6 +347,7 @@ pub async fn get_topics(
 
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
+    // FIXME: Negative checks
     let offset = (page - 1) * page_size;
 
     let mut conn = pool
@@ -355,15 +364,12 @@ pub async fn get_topics(
                     ApiError::InternalServerError(str!("Failed to get student information"))
                 })?;
 
-            let query = schema::topic::dsl::topic
+            let query = schema::topic::table
                 .inner_join(schema::teacher::table)
+                .filter(schema::topic::columns::major_id.eq(student_info.major_id))
                 .filter(
-                    schema::topic::columns::major_id
-                        .eq(student_info.major_id)
-                        .and(
-                            schema::topic::columns::topic_review_status
-                                .eq(TopicReviewStatus::Approved as i16),
-                        ),
+                    schema::topic::columns::topic_review_status
+                        .eq(TopicReviewStatus::Approved as i16),
                 );
             let total = query
                 .count()
@@ -379,7 +385,7 @@ pub async fn get_topics(
         }
         AuthInfoUserRole::Teacher => {
             // Teacher: Get their own topics
-            let query = schema::topic::dsl::topic
+            let query = schema::topic::table
                 .inner_join(schema::teacher::table)
                 .filter(schema::topic::columns::user_id.eq(user_id));
             let total = query
@@ -397,7 +403,7 @@ pub async fn get_topics(
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and DefenseBoard: Get all topics
             // No additional filtering needed.
-            let query = schema::topic::dsl::topic.inner_join(schema::teacher::table);
+            let query = schema::topic::table.inner_join(schema::teacher::table);
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -527,6 +533,7 @@ pub async fn search_topics(
 
     let page = query.page.unwrap_or(1);
     let page_size = query.page_size.unwrap_or(20);
+    // FIXME: Negative checks
     let offset = (page - 1) * page_size;
     let search_pattern = format!("%{}%", query.keyword.as_deref().unwrap_or(""));
 
@@ -544,17 +551,14 @@ pub async fn search_topics(
                     ApiError::InternalServerError(str!("Failed to get student information"))
                 })?;
 
-            let query = schema::topic::dsl::topic
+            let query = schema::topic::table
                 .inner_join(schema::teacher::table)
+                .filter(schema::topic::columns::major_id.eq(student_info.major_id))
                 .filter(
-                    schema::topic::columns::major_id
-                        .eq(student_info.major_id)
-                        .and(
-                            schema::topic::columns::topic_review_status
-                                .eq(TopicReviewStatus::Approved as i16),
-                        )
-                        .and(schema::topic::columns::topic_name.like(&search_pattern)),
-                );
+                    schema::topic::columns::topic_review_status
+                        .eq(TopicReviewStatus::Approved as i16),
+                )
+                .filter(schema::topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -569,13 +573,10 @@ pub async fn search_topics(
         }
         AuthInfoUserRole::Teacher => {
             // Teacher: Get their own topics with keyword search
-            let query = schema::topic::dsl::topic
+            let query = schema::topic::table
                 .inner_join(schema::teacher::table)
-                .filter(
-                    schema::topic::columns::user_id
-                        .eq(user_id)
-                        .and(schema::topic::columns::topic_name.like(&search_pattern)),
-                );
+                .filter(schema::topic::columns::user_id.eq(user_id))
+                .filter(schema::topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -590,7 +591,7 @@ pub async fn search_topics(
         }
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and DefenseBoard: Get all topics with keyword search
-            let query = schema::topic::dsl::topic
+            let query = schema::topic::table
                 .inner_join(schema::teacher::table)
                 .filter(schema::topic::columns::topic_name.like(&search_pattern));
             let total = query
@@ -657,7 +658,7 @@ pub async fn get_topic_detail(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     // Why boxed query here? Since we don't need it to be Copy, unlike the previous (count, records) pattern.
-    let mut query_builder = schema::topic::dsl::topic
+    let mut query_builder = schema::topic::table
         .inner_join(schema::teacher::table)
         .inner_join(schema::major::table)
         .filter(schema::topic::columns::topic_id.eq(*topic_id))
@@ -881,30 +882,438 @@ pub async fn update_topic(
 
 #[get("/assignments")]
 pub async fn get_assignments(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _query: web::Query<PaginationQuery>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    query: web::Query<PaginationQuery>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+    use chrono::{TimeZone, Utc};
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let is_admin = is_session_admin(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Can't deserialize auth info")))?;
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = if is_admin {
+        None
+    } else {
+        Some(get_session_user_role(&session).map_err(|_| {
+            ApiError::InternalServerError(str!("Failed to get user role from session"))
+        })?)
+    };
+
+    if !is_admin {
+        match user_role {
+            Some(AuthInfoUserRole::Student | AuthInfoUserRole::Teacher) => {}
+            _ => return Err(ApiError::Forbidden),
+        }
+    }
+
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    // FIXME: Negative checks
+    let offset = (page - 1) * page_size;
+    let want = offset + page_size;
+    let epoch = Utc.timestamp_opt(0, 0).single().unwrap();
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let pending_base = schema::assignmentrequest::table
+        .inner_join(schema::student::table.inner_join(schema::major::table))
+        .inner_join(schema::topic::table);
+
+    let approved_base = schema::student::table
+        .inner_join(schema::major::table)
+        .inner_join(schema::topic::table)
+        .filter(schema::student::columns::topic_id.is_not_null());
+
+    let (pending_total, pending_rows, approved_total, approved_rows) = if is_admin {
+        let pending_total: i64 = pending_base
+            .count()
+            .get_result(&mut conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to count assignments")))?;
+        let pending_rows = pending_base
+            .order(schema::assignmentrequest::columns::assn_req_time.desc())
+            .limit(want)
+            .select((
+                schema::assignmentrequest::columns::user_id,
+                schema::student::columns::student_name,
+                schema::major::columns::major_name,
+                schema::assignmentrequest::columns::topic_id,
+                schema::topic::columns::topic_name,
+                schema::assignmentrequest::columns::assn_req_time,
+            ))
+            .load::<(
+                i32,
+                String,
+                String,
+                i32,
+                String,
+                chrono::DateTime<chrono::Utc>,
+            )>(&mut conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to load assignments")))?;
+
+        let approved_total: i64 = approved_base
+            .count()
+            .get_result(&mut conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to count assignments")))?;
+        let approved_rows = approved_base
+            .order(schema::student::columns::assn_time.desc())
+            .limit(want)
+            .select((
+                schema::student::columns::user_id,
+                schema::student::columns::student_name,
+                schema::major::columns::major_name,
+                schema::topic::columns::topic_id,
+                schema::topic::columns::topic_name,
+                schema::student::columns::assn_time,
+            ))
+            .load::<(
+                i32,
+                String,
+                String,
+                i32,
+                String,
+                Option<chrono::DateTime<chrono::Utc>>,
+            )>(&mut conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to load assignments")))?;
+
+        (pending_total, pending_rows, approved_total, approved_rows)
+    } else {
+        match user_role {
+            Some(AuthInfoUserRole::Student) => {
+                let pending_q =
+                    pending_base.filter(schema::assignmentrequest::columns::user_id.eq(user_id));
+                let pending_total: i64 = pending_q.count().get_result(&mut conn).map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to count assignments"))
+                })?;
+                let pending_rows = pending_q
+                    .order(schema::assignmentrequest::columns::assn_req_time.desc())
+                    .limit(want)
+                    .select((
+                        schema::assignmentrequest::columns::user_id,
+                        schema::student::columns::student_name,
+                        schema::major::columns::major_name,
+                        schema::assignmentrequest::columns::topic_id,
+                        schema::topic::columns::topic_name,
+                        schema::assignmentrequest::columns::assn_req_time,
+                    ))
+                    .load::<(
+                        i32,
+                        String,
+                        String,
+                        i32,
+                        String,
+                        chrono::DateTime<chrono::Utc>,
+                    )>(&mut conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to load assignments"))
+                    })?;
+
+                let approved_q =
+                    approved_base.filter(schema::student::columns::user_id.eq(user_id));
+                let approved_total: i64 =
+                    approved_q.count().get_result(&mut conn).map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to count assignments"))
+                    })?;
+                let approved_rows = approved_q
+                    .order(schema::student::columns::assn_time.desc())
+                    .limit(want)
+                    .select((
+                        schema::student::columns::user_id,
+                        schema::student::columns::student_name,
+                        schema::major::columns::major_name,
+                        schema::topic::columns::topic_id,
+                        schema::topic::columns::topic_name,
+                        schema::student::columns::assn_time,
+                    ))
+                    .load::<(
+                        i32,
+                        String,
+                        String,
+                        i32,
+                        String,
+                        Option<chrono::DateTime<chrono::Utc>>,
+                    )>(&mut conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to load assignments"))
+                    })?;
+
+                (pending_total, pending_rows, approved_total, approved_rows)
+            }
+            Some(AuthInfoUserRole::Teacher) => {
+                let pending_q = pending_base.filter(schema::topic::columns::user_id.eq(user_id));
+                let pending_total: i64 = pending_q.count().get_result(&mut conn).map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to count assignments"))
+                })?;
+                let pending_rows = pending_q
+                    .order(schema::assignmentrequest::columns::assn_req_time.desc())
+                    .limit(want)
+                    .select((
+                        schema::assignmentrequest::columns::user_id,
+                        schema::student::columns::student_name,
+                        schema::major::columns::major_name,
+                        schema::assignmentrequest::columns::topic_id,
+                        schema::topic::columns::topic_name,
+                        schema::assignmentrequest::columns::assn_req_time,
+                    ))
+                    .load::<(
+                        i32,
+                        String,
+                        String,
+                        i32,
+                        String,
+                        chrono::DateTime<chrono::Utc>,
+                    )>(&mut conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to load assignments"))
+                    })?;
+
+                let approved_q = approved_base.filter(schema::topic::columns::user_id.eq(user_id));
+                let approved_total: i64 =
+                    approved_q.count().get_result(&mut conn).map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to count assignments"))
+                    })?;
+                let approved_rows = approved_q
+                    .order(schema::student::columns::assn_time.desc())
+                    .limit(want)
+                    .select((
+                        schema::student::columns::user_id,
+                        schema::student::columns::student_name,
+                        schema::major::columns::major_name,
+                        schema::topic::columns::topic_id,
+                        schema::topic::columns::topic_name,
+                        schema::student::columns::assn_time,
+                    ))
+                    .load::<(
+                        i32,
+                        String,
+                        String,
+                        i32,
+                        String,
+                        Option<chrono::DateTime<chrono::Utc>>,
+                    )>(&mut conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to load assignments"))
+                    })?;
+
+                (pending_total, pending_rows, approved_total, approved_rows)
+            }
+            _ => return Err(ApiError::Forbidden),
+        }
+    };
+
+    let total = pending_total + approved_total;
+
+    let pending = pending_rows.into_iter().map(
+        |(student_id, student_name, student_major, topic_id, topic_name, request_time)| {
+            Assignment {
+                student_id,
+                student_name,
+                student_major,
+                topic_id,
+                topic_name,
+                request_time,
+                status: AssignmentStatus::Pending,
+            }
+        },
+    );
+    let approved = approved_rows.into_iter().map(
+        |(student_id, student_name, student_major, topic_id, topic_name, assn_time)| Assignment {
+            student_id,
+            student_name,
+            student_major,
+            topic_id,
+            topic_name,
+            request_time: assn_time.unwrap_or(epoch),
+            status: AssignmentStatus::Approved,
+        },
+    );
+
+    // We assume this won't be too long.
+    let assignments = pending
+        .chain(approved)
+        .skip(offset as usize)
+        .take(page_size as usize)
+        .collect::<Vec<_>>();
+
+    Ok(HttpResponse::Ok().json(AssignmentsGetResponse {
+        total,
+        page,
+        page_size,
+        assignments,
+    }))
 }
 
 #[post("/assignments")]
 pub async fn create_assignment(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _req: web::Json<AssignmentsPostRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    req: web::Json<AssignmentsPostRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+    if !matches!(user_role, AuthInfoUserRole::Student) {
+        return Err(ApiError::Forbidden);
+    }
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    conn.build_transaction().read_write().run(|conn| {
+        let student = schema::student::dsl::student
+            .find(user_id)
+            .first::<Student>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+
+        if student.topic_id.is_some() {
+            return Err(ApiError::Conflict(str!("Student already has a topic")));
+        }
+
+        let topic = schema::topic::dsl::topic
+            .find(req.topic_id)
+            .first::<Topic>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+
+        if topic.topic_review_status != TopicReviewStatus::Approved as i16
+            || topic.major_id != student.major_id
+        {
+            return Err(ApiError::Forbidden);
+        }
+
+        let current_student_count: i64 = schema::student::dsl::student
+            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+            .count()
+            .get_result(conn)
+            .map_err(|_| ApiError::InternalServerError(str!("Failed to count students")))?;
+        if current_student_count >= topic.topic_max_students as i64 {
+            return Err(ApiError::Conflict(str!("Topic is full")));
+        }
+
+        let has_pending = diesel::select(diesel::dsl::exists(
+            schema::assignmentrequest::dsl::assignmentrequest
+                .filter(schema::assignmentrequest::columns::user_id.eq(user_id))
+                .filter(schema::assignmentrequest::columns::topic_id.eq(req.topic_id)),
+        ))
+        .get_result(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check existing request")))?;
+        if has_pending {
+            return Err(ApiError::Conflict(str!(
+                "Assignment request already exists"
+            )));
+        }
+
+        diesel::insert_into(schema::assignmentrequest::dsl::assignmentrequest)
+            .values(NewAssignmentRequest {
+                user_id,
+                topic_id: req.topic_id,
+                assn_req_time: Utc::now(),
+            })
+            .execute(conn)
+            .map_err(|_| ApiError::Conflict(str!("Failed to create assignment request")))?;
+
+        Ok::<_, ApiError>(())
+    })?;
+
+    Ok(HttpResponse::Created().finish())
 }
 
 #[patch("/assignments/{student_id}/{topic_id}")]
 pub async fn update_assignment_status(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _path: web::Path<(i32, i32)>,
-    _req: web::Json<AssignmentRecordPatchRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    path: web::Path<(i32, i32)>,
+    req: web::Json<AssignmentRecordPatchRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    if !matches!(user_role, AuthInfoUserRole::Teacher) {
+        // Only teachers can approve/reject assignment requests
+        return Err(ApiError::Forbidden);
+    }
+
+    let (student_id, topic_id) = path.into_inner();
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    conn.build_transaction().read_write().run(|conn| {
+        let req_row = schema::assignmentrequest::dsl::assignmentrequest
+            .find((student_id, topic_id))
+            .first::<AssignmentRequest>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+
+        let topic = schema::topic::dsl::topic
+            .find(req_row.topic_id)
+            .first::<Topic>(conn)
+            .map_err(|_| ApiError::NotFound)?;
+        if topic.user_id != user_id {
+            return Err(ApiError::Forbidden);
+        }
+
+        if req.approved {
+            let student = schema::student::dsl::student
+                .find(student_id)
+                .first::<Student>(conn)
+                .map_err(|_| ApiError::NotFound)?;
+            if student.topic_id.is_some() {
+                return Err(ApiError::Conflict(str!("Student already has a topic")));
+            }
+
+            let current_student_count: i64 = schema::student::dsl::student
+                .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+                .count()
+                .get_result(conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count students")))?;
+            if current_student_count >= topic.topic_max_students as i64 {
+                return Err(ApiError::Conflict(str!("Topic is full")));
+            }
+
+            let changeset = StudentAssignmentChangeset {
+                topic_id: topic.topic_id,
+                assn_time: req_row.assn_req_time,
+            };
+            diesel::update(&student)
+                .set(changeset)
+                .execute(conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to assign topic")))?;
+        }
+
+        diesel::delete(
+            schema::assignmentrequest::dsl::assignmentrequest.find((student_id, topic_id)),
+        )
+        .execute(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to delete assignment request")))?;
+
+        Ok::<_, ApiError>(())
+    })?;
+
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[get("/progress_reports")]
