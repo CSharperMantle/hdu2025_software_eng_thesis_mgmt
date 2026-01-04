@@ -2,9 +2,10 @@ use actix_session::Session;
 use actix_web::{HttpResponse, ResponseError, get, patch, post, web};
 use backend_database::DbPool;
 use backend_database::model::*;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use diesel::prelude::*;
 use serde::Deserialize;
+use std::collections::HashMap;
 use str_macro::str;
 
 use crate::helper::*;
@@ -34,7 +35,7 @@ pub async fn login(
     pool: web::Data<DbPool>,
     session: Session,
     req: web::Json<LoginRequest>,
-) -> Result<HttpResponse, impl ResponseError> {
+) -> Result<HttpResponse, ApiError> {
     use backend_database::schema::*;
 
     if is_session_authed(&session) {
@@ -99,7 +100,7 @@ pub async fn login(
 }
 
 #[post("/logout")]
-pub async fn logout(session: Session) -> Result<HttpResponse, impl ResponseError> {
+pub async fn logout(session: Session) -> Result<HttpResponse, ApiError> {
     if session.contains_key(AUTH_INFO_SESSION_KEY) {
         session.purge();
         Ok(HttpResponse::Ok().finish())
@@ -705,7 +706,7 @@ pub async fn get_topic_detail(
         .get_result(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to count students for topic")))?;
 
-    // 构建响应
+    // Build response
     let topic_details = TopicDetails {
         topic_id: topic.topic_id,
         major_id: topic.major_id,
@@ -788,7 +789,7 @@ pub async fn update_topic(
                     .get_result::<Topic>(conn)
                     .map_err(|e| {
                         ApiError::InternalServerError(format!(
-                            "Failed to update review status: {}",
+                            "Failed to update topic: {}",
                             e
                         ))
                     })?
@@ -884,7 +885,6 @@ pub async fn get_assignments(
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, ApiError> {
     use backend_database::schema::*;
-    use chrono::{TimeZone, Utc};
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1450,7 +1450,7 @@ pub async fn create_progress_report(
                         .eq(ProgressOutcome::NoConclusion as i16),
                 ),
         ))
-        .get_result::<bool>(conn)
+        .get_result(conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to check pending reports")))?;
         if has_pending {
             return Err(ApiError::Conflict(str!("A pending report already exists")));
@@ -1464,7 +1464,7 @@ pub async fn create_progress_report(
                     progressreport::columns::prog_report_outcome.eq(ProgressOutcome::Passed as i16),
                 ),
         ))
-        .get_result::<bool>(conn)
+        .get_result(conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to check passed reports")))?;
         if has_passed {
             return Err(ApiError::Conflict(str!("A passed report already exists")));
@@ -1516,19 +1516,17 @@ pub async fn update_progress_report(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     let result = conn.build_transaction().read_write().run(|conn| {
-        let (report, student_name, topic_name, teacher_id): (ProgressReport, String, String, i32) =
-            progressreport::table
-                .inner_join(student::table)
-                .inner_join(topic::table)
-                .filter(progressreport::columns::prog_report_id.eq(*report_id))
-                .select((
-                    progressreport::all_columns,
-                    student::columns::student_name,
-                    topic::columns::topic_name,
-                    topic::columns::user_id,
-                ))
-                .first(conn)
-                .map_err(|_| ApiError::NotFound)?;
+        let (report, student_name, teacher_id) = progressreport::table
+            .inner_join(student::table)
+            .inner_join(topic::table)
+            .filter(progressreport::columns::prog_report_id.eq(*report_id))
+            .select((
+                progressreport::all_columns,
+                student::columns::student_name,
+                topic::columns::user_id,
+            ))
+            .first::<(ProgressReport, String, i32)>(conn)
+            .map_err(|_| ApiError::NotFound)?;
 
         if teacher_id != user_id {
             return Err(ApiError::Forbidden);
@@ -1599,9 +1597,7 @@ pub async fn update_progress_report(
             .first::<ProgressReport>(conn)
             .map_err(|_| ApiError::NotFound)?;
 
-        let _ = topic_name; // already validated join; keep for symmetry with final-defense handler
-
-        Ok::<_, ApiError>(ProgressReportDetailResponse {
+        let result = ProgressReportDetailResponse {
             prog_report_id: updated.prog_report_id,
             topic_id: updated.topic_id,
             student_id: updated.user_id,
@@ -1614,7 +1610,9 @@ pub async fn update_progress_report(
                 .map_err(|_| ApiError::InternalServerError(str!("Invalid progress outcome")))?,
             prog_report_comment: updated.prog_report_comment,
             prog_report_grade: updated.prog_report_grade,
-        })
+        };
+
+        Ok::<_, ApiError>(result)
     })?;
 
     Ok(HttpResponse::Ok().json(result))
@@ -1860,7 +1858,6 @@ pub async fn update_final_defense(
                 // Choose the defense group with the least number of pending tasks.
                 // (Pending task = assigned to a defense group AND final outcome is NULL.)
                 // We compute counts via GROUP BY, then pick the minimum in Rust to keep the Diesel types simple.
-                use std::collections::HashMap;
 
                 let defense_board_ids = defenseboard::dsl::defenseboard
                     .select(defenseboard::columns::user_id)
