@@ -206,20 +206,7 @@ pub struct TopicsPostRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TopicsPostTeacherRequest {
-    pub topic_name: Option<String>,
-    pub topic_description: Option<String>,
-    pub topic_max_students: Option<i32>,
-    pub topic_type: Option<TopicType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TopicsPostOfficeRequest {
-    pub topic_review_status: TopicReviewStatus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TopicsPostAdminRequest {
+pub struct TopicPatchRequest {
     pub topic_name: Option<String>,
     pub topic_description: Option<String>,
     pub topic_max_students: Option<i32>,
