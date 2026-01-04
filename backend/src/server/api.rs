@@ -366,10 +366,7 @@ pub async fn get_topics(
                 })?;
 
             let query = schema::topic::dsl::topic
-                .inner_join(
-                    schema::teacher::table
-                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-                )
+                .inner_join(schema::teacher::table)
                 .filter(
                     schema::topic::columns::major_id
                         .eq(student_info.major_id)
@@ -393,10 +390,7 @@ pub async fn get_topics(
         AuthInfoUserRole::Teacher => {
             // Teacher: Get their own topics
             let query = schema::topic::dsl::topic
-                .inner_join(
-                    schema::teacher::dsl::teacher
-                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-                )
+                .inner_join(schema::teacher::table)
                 .filter(schema::topic::columns::user_id.eq(user_id));
             let total = query
                 .count()
@@ -413,10 +407,7 @@ pub async fn get_topics(
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and DefenseBoard: Get all topics
             // No additional filtering needed.
-            let query = schema::topic::dsl::topic.inner_join(
-                schema::teacher::dsl::teacher
-                    .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-            );
+            let query = schema::topic::dsl::topic.inner_join(schema::teacher::table);
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -564,10 +555,7 @@ pub async fn search_topics(
                 })?;
 
             let query = schema::topic::dsl::topic
-                .inner_join(
-                    schema::teacher::dsl::teacher
-                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-                )
+                .inner_join(schema::teacher::table)
                 .filter(
                     schema::topic::columns::major_id
                         .eq(student_info.major_id)
@@ -592,10 +580,7 @@ pub async fn search_topics(
         AuthInfoUserRole::Teacher => {
             // Teacher: Get their own topics with keyword search
             let query = schema::topic::dsl::topic
-                .inner_join(
-                    schema::teacher::dsl::teacher
-                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-                )
+                .inner_join(schema::teacher::table)
                 .filter(
                     schema::topic::columns::user_id
                         .eq(user_id)
@@ -616,10 +601,7 @@ pub async fn search_topics(
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and DefenseBoard: Get all topics with keyword search
             let query = schema::topic::dsl::topic
-                .inner_join(
-                    schema::teacher::dsl::teacher
-                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-                )
+                .inner_join(schema::teacher::table)
                 .filter(schema::topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
@@ -686,14 +668,8 @@ pub async fn get_topic_detail(
 
     // Why boxed query here? Since we don't need it to be Copy, unlike the previous (count, records) pattern.
     let mut query_builder = schema::topic::dsl::topic
-        .inner_join(
-            schema::teacher::dsl::teacher
-                .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-        )
-        .inner_join(
-            schema::major::dsl::major
-                .on(schema::topic::columns::major_id.eq(schema::major::columns::major_id)),
-        )
+        .inner_join(schema::teacher::table)
+        .inner_join(schema::major::table)
         .filter(schema::topic::columns::topic_id.eq(*topic_id))
         .into_boxed();
 
@@ -946,14 +922,8 @@ pub async fn update_topic(
 
     let updated_topic = schema::topic::dsl::topic
         .find(*topic_id)
-        .inner_join(
-            schema::teacher::dsl::teacher
-                .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
-        )
-        .inner_join(
-            schema::major::dsl::major
-                .on(schema::topic::columns::major_id.eq(schema::major::columns::major_id)),
-        )
+        .inner_join(schema::teacher::table)
+        .inner_join(schema::major::table)
         .first::<(Topic, Teacher, Major)>(&mut conn)
         .map_err(|e| {
             ApiError::InternalServerError(format!("Failed to load updated topic: {}", e))
