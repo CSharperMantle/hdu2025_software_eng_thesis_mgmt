@@ -287,7 +287,7 @@ create table FinalDefense (
    final_def_id         SERIAL               not null,
    topic_id             INT4                 not null,
    user_id              INT4                 not null,
-   Def_user_id          INT4                 not null,
+   def_user_id          INT4                 null,
    final_def_time       TIMESTAMP WITH TIME ZONE not null,
    final_def_attachment TEXT                 not null,
    final_def_outcome    BOOL                 null,
@@ -300,7 +300,7 @@ create table FinalDefense (
    constraint FK_FINALDEF_FINALDEFE_TOPIC foreign key (topic_id)
       references Topic (topic_id)
       on delete restrict on update restrict,
-   constraint FK_FINALDEF_LISTENING_DEFENSEB foreign key (Def_user_id)
+   constraint FK_FINALDEF_LISTENING_DEFENSEB foreign key (def_user_id)
       references DefenseBoard (user_id)
       on delete restrict on update restrict
 );
@@ -316,7 +316,7 @@ final_def_id
 /* Index: ListeningTo_FK                                        */
 /*==============================================================*/
 create  index ListeningTo_FK on FinalDefense (
-Def_user_id
+def_user_id
 );
 
 /*==============================================================*/

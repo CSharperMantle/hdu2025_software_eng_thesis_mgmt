@@ -238,7 +238,7 @@ pub struct FinalDefense {
     pub final_def_id: i32,
     pub topic_id: i32,
     pub user_id: i32,
-    pub def_user_id: i32,
+    pub def_user_id: Option<i32>,
     pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: String,
     pub final_def_outcome: Option<bool>,
@@ -321,6 +321,7 @@ pub struct NewAssignmentRequest {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::progressreport)]
 pub struct NewProgressReport<'a> {
+    pub topic_id: i32,
     pub user_id: i32,
     pub prog_report_type: i16,
     pub prog_report_time: DateTime<Utc>,
@@ -335,7 +336,7 @@ pub struct NewProgressReport<'a> {
 pub struct NewFinalDefense<'a> {
     pub topic_id: i32,
     pub user_id: i32,
-    pub def_user_id: i32,
+    pub def_user_id: Option<i32>,
     pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: &'a str,
     pub final_def_outcome: Option<bool>,

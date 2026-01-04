@@ -19,7 +19,7 @@ diesel::table! {
         final_def_id -> Int4,
         topic_id -> Int4,
         user_id -> Int4,
-        def_user_id -> Int4,
+        def_user_id -> Nullable<Int4>,
         final_def_time -> Timestamptz,
         final_def_attachment -> Text,
         final_def_outcome -> Nullable<Bool>,
