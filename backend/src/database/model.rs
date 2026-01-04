@@ -134,7 +134,6 @@ pub struct NewSysUser<'a> {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::major)]
 pub struct NewMajor<'a> {
-    pub major_id: i32,
     pub major_name: &'a str,
 }
 
@@ -166,7 +165,6 @@ pub struct NewDefenseBoard {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::topic)]
 pub struct NewTopic<'a> {
-    pub topic_id: i32,
     pub major_id: i32,
     pub user_id: i32,
     pub topic_name: &'a str,
@@ -197,7 +195,6 @@ pub struct NewAssignmentRequest {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::progressreport)]
 pub struct NewProgressReport<'a> {
-    pub topic_id: i32,
     pub user_id: i32,
     pub prog_report_type: i16,
     pub prog_report_time: DateTime<Utc>,
@@ -210,7 +207,6 @@ pub struct NewProgressReport<'a> {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::finaldefense)]
 pub struct NewFinalDefense<'a> {
-    pub final_def_id: i32,
     pub topic_id: i32,
     pub user_id: i32,
     pub def_user_id: i32,

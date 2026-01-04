@@ -3,6 +3,7 @@ use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt;
 
 #[derive(
@@ -24,10 +25,17 @@ pub enum UserRole {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize_repr,
+    Deserialize_repr,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
 #[repr(i16)]
-#[serde(rename_all = "snake_case")]
 pub enum TopicType {
     /// 理论研究型
     Theoretical = 0,
@@ -42,10 +50,17 @@ pub enum TopicType {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize_repr,
+    Deserialize_repr,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
 #[repr(i16)]
-#[serde(rename_all = "snake_case")]
 pub enum TopicReviewStatus {
     /// 0: 待审核
     Pending = 0,
@@ -56,10 +71,17 @@ pub enum TopicReviewStatus {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize_repr,
+    Deserialize_repr,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
 #[repr(i16)]
-#[serde(rename_all = "snake_case")]
 pub enum ProgressReportType {
     /// 0: 开题报告
     Proposal = 0,
@@ -68,10 +90,17 @@ pub enum ProgressReportType {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize_repr,
+    Deserialize_repr,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
 #[repr(i16)]
-#[serde(rename_all = "snake_case")]
 pub enum ProgressOutcome {
     /// 0: 无结论
     NoConclusion = 0,
@@ -82,10 +111,17 @@ pub enum ProgressOutcome {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, IntoPrimitive, TryFromPrimitive,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize_repr,
+    Deserialize_repr,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
 #[repr(i16)]
-#[serde(rename_all = "snake_case")]
 pub enum AssignmentStatus {
     /// 0: 待审核
     Pending = 0,
@@ -150,7 +186,6 @@ pub struct TopicDetails {
     pub topic_type: TopicType,
     pub topic_review_status: TopicReviewStatus,
     pub current_student_count: i32,
-    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

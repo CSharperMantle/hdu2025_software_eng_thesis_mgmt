@@ -332,38 +332,430 @@ pub async fn create_user(
 
 #[get("/topics")]
 pub async fn get_topics(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _query: web::Query<PaginationQuery>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    query: web::Query<PaginationQuery>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    let offset = (page - 1) * page_size;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let (total, topics_with_teacher) = match user_role {
+        AuthInfoUserRole::Student => {
+            // Student: Get topics approved for their major
+            let student_info = schema::student::dsl::student
+                .find(user_id)
+                .first::<Student>(&mut conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to get student information"))
+                })?;
+
+            let query = schema::topic::dsl::topic
+                .inner_join(
+                    schema::teacher::dsl::teacher
+                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+                )
+                .filter(
+                    schema::topic::columns::major_id
+                        .eq(student_info.major_id)
+                        .and(
+                            schema::topic::columns::topic_review_status
+                                .eq(TopicReviewStatus::Approved as i16),
+                        ),
+                );
+            let total = query
+                .count()
+                .get_result::<i64>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count topics")))?;
+            let topics_with_teacher = query
+                .offset(offset)
+                .limit(page_size)
+                .order_by(schema::topic::columns::topic_id.desc())
+                .load::<(Topic, Teacher)>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
+            (total, topics_with_teacher)
+        }
+        AuthInfoUserRole::Teacher => {
+            // Teacher: Get their own topics
+            let query = schema::topic::dsl::topic
+                .inner_join(
+                    schema::teacher::dsl::teacher
+                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+                )
+                .filter(schema::topic::columns::user_id.eq(user_id));
+            let total = query
+                .count()
+                .get_result::<i64>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count topics")))?;
+            let topics_with_teacher = query
+                .offset(offset)
+                .limit(page_size)
+                .order_by(schema::topic::columns::topic_id.desc())
+                .load::<(Topic, Teacher)>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
+            (total, topics_with_teacher)
+        }
+        AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
+            // Office and DefenseBoard: Get all topics
+            // No additional filtering needed.
+            let query = schema::topic::dsl::topic.inner_join(
+                schema::teacher::dsl::teacher
+                    .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+            );
+            let total = query
+                .count()
+                .get_result::<i64>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count topics")))?;
+            let topics_with_teacher = query
+                .offset(offset)
+                .limit(page_size)
+                .order_by(schema::topic::columns::topic_id.desc())
+                .load::<(Topic, Teacher)>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
+            (total, topics_with_teacher)
+        }
+    };
+
+    let mut topic_briefs = Vec::new();
+    for (topic, teacher) in topics_with_teacher {
+        let current_student_count = schema::student::dsl::student
+            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+            .count()
+            .get_result::<i64>(&mut conn)
+            .map_err(|_| {
+                ApiError::InternalServerError(str!("Failed to count students for topic"))
+            })?;
+
+        topic_briefs.push(TopicBrief {
+            topic_id: topic.topic_id,
+            teacher_name: teacher.teacher_name,
+            topic_name: topic.topic_name,
+            topic_max_students: topic.topic_max_students,
+            topic_type: TopicType::try_from(topic.topic_type)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
+            current_student_count: current_student_count as i32,
+        });
+    }
+
+    Ok(HttpResponse::Ok().json(TopicsGetResponse {
+        total,
+        page,
+        page_size,
+        topics: topic_briefs,
+    }))
 }
 
 #[post("/topics")]
 pub async fn create_topic(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _req: web::Json<TopicsPostRequest>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    req: web::Json<TopicsPostRequest>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+    if !matches!(user_role, AuthInfoUserRole::Teacher) {
+        // Only teachers can create topics
+        return Err(ApiError::Forbidden);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let has_such_teacher: i64 = schema::teacher::dsl::teacher
+        .find(user_id)
+        .count()
+        .get_result(&mut conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to check teacher existence")))?;
+    if has_such_teacher == 0 {
+        return Err(ApiError::InternalServerError(str!(
+            "Teacher record not found for user"
+        )));
+    }
+
+    let new_topic = conn.build_transaction().read_write().run(|conn| {
+        let new_topic = NewTopic {
+            major_id: req.major_id,
+            user_id,
+            topic_name: &req.topic_name,
+            topic_description: &req.topic_description,
+            topic_max_students: req.topic_max_students,
+            topic_type: req.topic_type as i16,
+            topic_review_status: TopicReviewStatus::Pending as i16,
+        };
+
+        let inserted_topic = diesel::insert_into(schema::topic::dsl::topic)
+            .values(&new_topic)
+            .get_result::<Topic>(conn)
+            .map_err(|e| {
+                if e.to_string().contains("duplicate key") {
+                    ApiError::Conflict(str!("Topic with similar name already exists"))
+                } else {
+                    ApiError::InternalServerError(str!("Failed to create topic"))
+                }
+            })?;
+
+        Ok::<_, ApiError>(inserted_topic)
+    })?;
+
+    Ok(HttpResponse::Created().json(TopicCreateResponse {
+        topic_id: new_topic.topic_id,
+    }))
 }
 
 #[get("/topics/search")]
 pub async fn search_topics(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _query: web::Query<SearchQuery>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    query: web::Query<SearchQuery>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(20);
+    let offset = (page - 1) * page_size;
+    let search_pattern = format!("%{}%", query.keyword.as_deref().unwrap_or(""));
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    let (total, topics_with_teacher) = match user_role {
+        AuthInfoUserRole::Student => {
+            // Student: Get topics approved for their major with keyword search
+            let student_info = schema::student::dsl::student
+                .find(user_id)
+                .first::<Student>(&mut conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to get student information"))
+                })?;
+
+            let query = schema::topic::dsl::topic
+                .inner_join(
+                    schema::teacher::dsl::teacher
+                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+                )
+                .filter(
+                    schema::topic::columns::major_id
+                        .eq(student_info.major_id)
+                        .and(
+                            schema::topic::columns::topic_review_status
+                                .eq(TopicReviewStatus::Approved as i16),
+                        )
+                        .and(schema::topic::columns::topic_name.like(&search_pattern)),
+                );
+            let total = query
+                .count()
+                .get_result::<i64>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count topics")))?;
+            let topics_with_teacher = query
+                .offset(offset)
+                .limit(page_size)
+                .order_by(schema::topic::columns::topic_id.desc())
+                .load::<(Topic, Teacher)>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
+            (total, topics_with_teacher)
+        }
+        AuthInfoUserRole::Teacher => {
+            // Teacher: Get their own topics with keyword search
+            let query = schema::topic::dsl::topic
+                .inner_join(
+                    schema::teacher::dsl::teacher
+                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+                )
+                .filter(
+                    schema::topic::columns::user_id
+                        .eq(user_id)
+                        .and(schema::topic::columns::topic_name.like(&search_pattern)),
+                );
+            let total = query
+                .count()
+                .get_result::<i64>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count topics")))?;
+            let topics_with_teacher = query
+                .offset(offset)
+                .limit(page_size)
+                .order_by(schema::topic::columns::topic_id.desc())
+                .load::<(Topic, Teacher)>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
+            (total, topics_with_teacher)
+        }
+        AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
+            // Office and DefenseBoard: Get all topics with keyword search
+            let query = schema::topic::dsl::topic
+                .inner_join(
+                    schema::teacher::dsl::teacher
+                        .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+                )
+                .filter(schema::topic::columns::topic_name.like(&search_pattern));
+            let total = query
+                .count()
+                .get_result::<i64>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to count topics")))?;
+            let topics_with_teacher = query
+                .offset(offset)
+                .limit(page_size)
+                .order_by(schema::topic::columns::topic_id.desc())
+                .load::<(Topic, Teacher)>(&mut conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
+            (total, topics_with_teacher)
+        }
+    };
+
+    let mut topic_briefs = Vec::new();
+    for (topic, teacher) in topics_with_teacher {
+        let current_student_count = schema::student::dsl::student
+            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+            .count()
+            .get_result::<i64>(&mut conn)
+            .map_err(|_| {
+                ApiError::InternalServerError(str!("Failed to count students for topic"))
+            })?;
+        topic_briefs.push(TopicBrief {
+            topic_id: topic.topic_id,
+            teacher_name: teacher.teacher_name,
+            topic_name: topic.topic_name,
+            topic_max_students: topic.topic_max_students,
+            topic_type: TopicType::try_from(topic.topic_type)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
+            current_student_count: current_student_count as i32,
+        });
+    }
+
+    Ok(HttpResponse::Ok().json(TopicsGetResponse {
+        total,
+        page,
+        page_size,
+        topics: topic_briefs,
+    }))
 }
 
 #[get("/topics/{topic_id}")]
 pub async fn get_topic_detail(
-    _pool: web::Data<DbPool>,
-    _session: Session,
-    _topic_id: web::Path<i32>,
-) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    pool: web::Data<DbPool>,
+    session: Session,
+    topic_id: web::Path<i32>,
+) -> Result<HttpResponse, ApiError> {
+    use backend_database::schema;
+
+    if !is_session_authed(&session) {
+        return Err(ApiError::Unauthorized);
+    }
+
+    let user_id = get_session_user_id(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let user_role = get_session_user_role(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
+
+    let mut conn = pool
+        .get()
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
+
+    // Why boxed query here? Since we don't need it to be Copy, unlike the previous (count, records) pattern.
+    let mut query_builder = schema::topic::dsl::topic
+        .inner_join(
+            schema::teacher::dsl::teacher
+                .on(schema::topic::columns::user_id.eq(schema::teacher::columns::user_id)),
+        )
+        .inner_join(
+            schema::major::dsl::major
+                .on(schema::topic::columns::major_id.eq(schema::major::columns::major_id)),
+        )
+        .filter(schema::topic::columns::topic_id.eq(*topic_id))
+        .into_boxed();
+
+    match user_role {
+        AuthInfoUserRole::Student => {
+            // Student: Get topics approved for their major
+            let student_info = schema::student::dsl::student
+                .filter(schema::student::columns::user_id.eq(user_id))
+                .first::<Student>(&mut conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to get student information"))
+                })?;
+
+            query_builder = query_builder
+                .filter(schema::topic::columns::major_id.eq(student_info.major_id))
+                .filter(
+                    schema::topic::columns::topic_review_status
+                        .eq(TopicReviewStatus::Approved as i16),
+                );
+        }
+        AuthInfoUserRole::Teacher => {
+            // Teacher: Get topics created by themselves
+            query_builder = query_builder.filter(schema::topic::columns::user_id.eq(user_id));
+        }
+        AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
+            // Office and Defense Board: Get all topics without additional filtering
+        }
+    }
+
+    let (topic, teacher, major): (Topic, Teacher, Major) =
+        query_builder.first(&mut conn).map_err(|e| {
+            if let diesel::result::Error::NotFound = e {
+                ApiError::NotFound
+            } else {
+                ApiError::InternalServerError(str!("Failed to load topic details"))
+            }
+        })?;
+
+    let current_student_count: i64 = schema::student::dsl::student
+        .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+        .count()
+        .get_result(&mut conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to count students for topic")))?;
+
+    // 构建响应
+    let topic_details = TopicDetails {
+        topic_id: topic.topic_id,
+        major_id: topic.major_id,
+        major_name: major.major_name,
+        teacher_id: topic.user_id,
+        teacher_name: teacher.teacher_name,
+        topic_name: topic.topic_name,
+        topic_description: topic.topic_description,
+        topic_max_students: topic.topic_max_students,
+        topic_type: TopicType::try_from(topic.topic_type)
+            .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
+        topic_review_status: TopicReviewStatus::try_from(topic.topic_review_status)
+            .map_err(|_| ApiError::InternalServerError(str!("Invalid topic review status")))?,
+        current_student_count: current_student_count as i32,
+    };
+
+    Ok(HttpResponse::Ok().json(topic_details))
 }
 
 #[patch("/topics/{topic_id}")]

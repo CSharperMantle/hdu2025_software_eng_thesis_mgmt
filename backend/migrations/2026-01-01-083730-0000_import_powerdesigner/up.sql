@@ -26,7 +26,7 @@ user_id
 /* Table: Major                                                 */
 /*==============================================================*/
 create table Major (
-   major_id             INT4                 not null,
+   major_id             SERIAL               not null,
    major_name           VARCHAR(16)          not null,
    constraint PK_MAJOR primary key (major_id)
 );
@@ -115,7 +115,7 @@ user_id
 /* Table: Topic                                                 */
 /*==============================================================*/
 create table Topic (
-   topic_id             INT4                 not null,
+   topic_id             SERIAL               not null,
    major_id             INT4                 not null,
    user_id              INT4                 not null,
    topic_name           VARCHAR(128)         not null,
@@ -284,7 +284,7 @@ topic_id
 /* Table: FinalDefense                                          */
 /*==============================================================*/
 create table FinalDefense (
-   final_def_id         INT4                 not null,
+   final_def_id         SERIAL               not null,
    topic_id             INT4                 not null,
    user_id              INT4                 not null,
    Def_user_id          INT4                 not null,

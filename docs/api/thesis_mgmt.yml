@@ -814,10 +814,6 @@ components:
           type: integer
           description: 当前已分配学生数
           example: 2
-        created_at:
-          type: string
-          format: date-time
-          description: 创建时间
     ProgressReportType:
       type: integer
       enum: [0, 1]
