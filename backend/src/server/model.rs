@@ -305,10 +305,22 @@ pub struct FinalDefensesPostRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FinalDefensesRecordPatchRequest {
+pub struct FinalDefensesRecordTeacherPatchRequest {
+    pub approved: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FinalDefensesRecordDefenseBoardPatchRequest {
     pub outcome: bool,
     pub comment: String,
     pub grade: BigDecimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FinalDefensesRecordPatchRequest {
+    Teacher(FinalDefensesRecordTeacherPatchRequest),
+    DefenseBoard(FinalDefensesRecordDefenseBoardPatchRequest),
 }
 
 #[derive(Debug)]
