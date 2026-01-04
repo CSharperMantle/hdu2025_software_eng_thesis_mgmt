@@ -35,7 +35,7 @@ pub async fn login(
     session: Session,
     req: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, impl ResponseError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if is_session_authed(&session) {
         return Err(ApiError::BadRequest(str!("Already logged in")));
@@ -44,8 +44,8 @@ pub async fn login(
     let mut conn = pool
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
-    let user = schema::sysuser::dsl::sysuser
-        .filter(schema::sysuser::columns::user_login.eq(&req.username))
+    let user = sysuser::dsl::sysuser
+        .filter(sysuser::columns::user_login.eq(&req.username))
         .first::<SysUser>(&mut conn)
         .map_err(|_| ApiError::Unauthorized)?;
 
@@ -59,27 +59,27 @@ pub async fn login(
     if password_good {
         let auth_info = map_schema_role!(
             &mut conn, user.user_id, Err(ApiError::InternalServerError(str!("User not in any role"))),
-            schema::sysadmin::dsl::sysadmin => SysAdmin => Ok(AuthInfo::SysAdmin {
+            sysadmin::dsl::sysadmin => SysAdmin => Ok(AuthInfo::SysAdmin {
                 user_id: user.user_id,
                 username: user.user_login.clone(),
                 impersonating: None,
             });
-            schema::student::dsl::student => Student => Ok(AuthInfo::User {
+            student::dsl::student => Student => Ok(AuthInfo::User {
                 user_id: user.user_id,
                 username: user.user_login.clone(),
                 role: AuthInfoUserRole::Student,
             });
-            schema::teacher::dsl::teacher => Teacher => Ok(AuthInfo::User {
+            teacher::dsl::teacher => Teacher => Ok(AuthInfo::User {
                 user_id: user.user_id,
                 username: user.user_login.clone(),
                 role: AuthInfoUserRole::Teacher,
             });
-            schema::defenseboard::dsl::defenseboard => DefenseBoard => Ok(AuthInfo::User {
+            defenseboard::dsl::defenseboard => DefenseBoard => Ok(AuthInfo::User {
                 user_id: user.user_id,
                 username: user.user_login.clone(),
                 role: AuthInfoUserRole::DefenseBoard,
             });
-            schema::office::dsl::office => Office => Ok(AuthInfo::User {
+            office::dsl::office => Office => Ok(AuthInfo::User {
                 user_id: user.user_id,
                 username: user.user_login.clone(),
                 role: AuthInfoUserRole::Office,
@@ -113,7 +113,7 @@ pub async fn get_current_user(
     pool: web::Data<DbPool>,
     session: Session,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -126,7 +126,7 @@ pub async fn get_current_user(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
-    let sys_user = schema::sysuser::dsl::sysuser
+    let sys_user = sysuser::dsl::sysuser
         .find(user_id)
         .first::<SysUser>(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user information")))?;
@@ -134,27 +134,27 @@ pub async fn get_current_user(
     // Get user role and name based on role
     let (role, name) = map_schema_role!(
         &mut conn, user_id, Err(ApiError::InternalServerError(str!("User not in any role"))),
-        schema::sysadmin::dsl::sysadmin => SysAdmin => {
+        sysadmin::dsl::sysadmin => SysAdmin => {
             Ok((UserRole::Admin, None))
         };
-        schema::student::dsl::student => Student => {
-            let student = schema::student::dsl::student
+        student::dsl::student => Student => {
+            let student = student::dsl::student
                 .find(user_id)
                 .first::<Student>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to get student information")))?;
             Ok((UserRole::Student, Some(student.student_name)))
         };
-        schema::teacher::dsl::teacher => Teacher => {
-            let teacher = schema::teacher::dsl::teacher
+        teacher::dsl::teacher => Teacher => {
+            let teacher = teacher::dsl::teacher
                 .find(user_id)
                 .first::<Teacher>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to get teacher information")))?;
             Ok((UserRole::Teacher, Some(teacher.teacher_name)))
         };
-        schema::defenseboard::dsl::defenseboard => DefenseBoard => {
+        defenseboard::dsl::defenseboard => DefenseBoard => {
             Ok((UserRole::DefenseBoard, None))
         };
-        schema::office::dsl::office => Office => {
+        office::dsl::office => Office => {
             Ok((UserRole::Office, None))
         };
     )?;
@@ -174,7 +174,7 @@ pub async fn update_current_user(
     session: Session,
     req: web::Json<UserPatchRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -201,7 +201,7 @@ pub async fn update_current_user(
             changeset.user_password_salt = Some(salt);
         }
 
-        diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
+        diesel::update(sysuser::dsl::sysuser.find(user_id))
             .set(changeset)
             .execute(conn)
             .map_err(|_| {
@@ -209,36 +209,32 @@ pub async fn update_current_user(
             })?;
 
         if let Some(ref avatar) = req.avatar {
-            diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
-                .set(schema::sysuser::columns::user_avatar.eq(avatar))
+            diesel::update(sysuser::dsl::sysuser.find(user_id))
+                .set(sysuser::columns::user_avatar.eq(avatar))
                 .execute(conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to update avatar")))?;
         }
 
         if let Some(ref name) = req.name {
             // Is student?
-            if diesel::select(diesel::dsl::exists(
-                schema::student::dsl::student.find(user_id),
-            ))
-            .get_result::<bool>(conn)
-            .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
+            if diesel::select(diesel::dsl::exists(student::dsl::student.find(user_id)))
+                .get_result::<bool>(conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
             {
-                diesel::update(schema::student::dsl::student.find(user_id))
-                    .set(schema::student::columns::student_name.eq(name))
+                diesel::update(student::dsl::student.find(user_id))
+                    .set(student::columns::student_name.eq(name))
                     .execute(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to update student name"))
                     })?;
             }
             // Is teacher?
-            else if diesel::select(diesel::dsl::exists(
-                schema::teacher::dsl::teacher.find(user_id),
-            ))
-            .get_result::<bool>(conn)
-            .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
+            else if diesel::select(diesel::dsl::exists(teacher::dsl::teacher.find(user_id)))
+                .get_result::<bool>(conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
             {
-                diesel::update(schema::teacher::dsl::teacher.find(user_id))
-                    .set(schema::teacher::columns::teacher_name.eq(name))
+                diesel::update(teacher::dsl::teacher.find(user_id))
+                    .set(teacher::columns::teacher_name.eq(name))
                     .execute(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to update teacher name"))
@@ -258,7 +254,7 @@ pub async fn create_user(
     session: Session,
     req: web::Json<UserPostRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -281,7 +277,7 @@ pub async fn create_user(
             _ => None,
         };
 
-        let new_sys_user = diesel::insert_into(schema::sysuser::dsl::sysuser)
+        let new_sys_user = diesel::insert_into(sysuser::dsl::sysuser)
             .values(NewSysUser {
                 user_login: &req.username,
                 user_password_hash: &hash,
@@ -291,12 +287,12 @@ pub async fn create_user(
             .get_result::<SysUser>(conn)
             .map_err(|_| ApiError::Conflict(str!("Failed to create new user")))?;
         match req.role {
-            UserRole::Admin => diesel::insert_into(schema::sysadmin::dsl::sysadmin)
+            UserRole::Admin => diesel::insert_into(sysadmin::dsl::sysadmin)
                 .values(NewSysAdmin {
                     user_id: new_sys_user.user_id,
                 })
                 .execute(conn),
-            UserRole::Student => diesel::insert_into(schema::student::dsl::student)
+            UserRole::Student => diesel::insert_into(student::dsl::student)
                 .values(NewStudent {
                     user_id: new_sys_user.user_id,
                     topic_id: None,
@@ -309,7 +305,7 @@ pub async fn create_user(
                     assn_time: None,
                 })
                 .execute(conn),
-            UserRole::Teacher => diesel::insert_into(schema::teacher::dsl::teacher)
+            UserRole::Teacher => diesel::insert_into(teacher::dsl::teacher)
                 .values(NewTeacher {
                     user_id: new_sys_user.user_id,
                     teacher_name: name.as_deref().ok_or(ApiError::BadRequest(str!(
@@ -317,12 +313,12 @@ pub async fn create_user(
                     )))?,
                 })
                 .execute(conn),
-            UserRole::DefenseBoard => diesel::insert_into(schema::defenseboard::dsl::defenseboard)
+            UserRole::DefenseBoard => diesel::insert_into(defenseboard::dsl::defenseboard)
                 .values(NewDefenseBoard {
                     user_id: new_sys_user.user_id,
                 })
                 .execute(conn),
-            UserRole::Office => diesel::insert_into(schema::office::dsl::office)
+            UserRole::Office => diesel::insert_into(office::dsl::office)
                 .values(NewOffice {
                     user_id: new_sys_user.user_id,
                 })
@@ -347,7 +343,7 @@ pub async fn get_topics(
     session: Session,
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -370,20 +366,17 @@ pub async fn get_topics(
     let (total, topics_with_teacher) = match user_role {
         AuthInfoUserRole::Student => {
             // Student: Get topics approved for their major
-            let student_info = schema::student::dsl::student
+            let student_info = student::dsl::student
                 .find(user_id)
                 .first::<Student>(&mut conn)
                 .map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to get student information"))
                 })?;
 
-            let query = schema::topic::table
-                .inner_join(schema::teacher::table)
-                .filter(schema::topic::columns::major_id.eq(student_info.major_id))
-                .filter(
-                    schema::topic::columns::topic_review_status
-                        .eq(TopicReviewStatus::Approved as i16),
-                );
+            let query = topic::table
+                .inner_join(teacher::table)
+                .filter(topic::columns::major_id.eq(student_info.major_id))
+                .filter(topic::columns::topic_review_status.eq(TopicReviewStatus::Approved as i16));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -391,16 +384,16 @@ pub async fn get_topics(
             let topics_with_teacher = query
                 .offset(offset)
                 .limit(page_size)
-                .order_by(schema::topic::columns::topic_id.desc())
+                .order_by(topic::columns::topic_id.desc())
                 .load::<(Topic, Teacher)>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
             (total, topics_with_teacher)
         }
         AuthInfoUserRole::Teacher => {
             // Teacher: Get their own topics
-            let query = schema::topic::table
-                .inner_join(schema::teacher::table)
-                .filter(schema::topic::columns::user_id.eq(user_id));
+            let query = topic::table
+                .inner_join(teacher::table)
+                .filter(topic::columns::user_id.eq(user_id));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -408,7 +401,7 @@ pub async fn get_topics(
             let topics_with_teacher = query
                 .offset(offset)
                 .limit(page_size)
-                .order_by(schema::topic::columns::topic_id.desc())
+                .order_by(topic::columns::topic_id.desc())
                 .load::<(Topic, Teacher)>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
             (total, topics_with_teacher)
@@ -416,7 +409,7 @@ pub async fn get_topics(
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and DefenseBoard: Get all topics
             // No additional filtering needed.
-            let query = schema::topic::table.inner_join(schema::teacher::table);
+            let query = topic::table.inner_join(teacher::table);
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -424,7 +417,7 @@ pub async fn get_topics(
             let topics_with_teacher = query
                 .offset(offset)
                 .limit(page_size)
-                .order_by(schema::topic::columns::topic_id.desc())
+                .order_by(topic::columns::topic_id.desc())
                 .load::<(Topic, Teacher)>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
             (total, topics_with_teacher)
@@ -433,8 +426,8 @@ pub async fn get_topics(
 
     let mut topic_briefs = Vec::new();
     for (topic, teacher) in topics_with_teacher {
-        let current_student_count = schema::student::dsl::student
-            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+        let current_student_count = student::dsl::student
+            .filter(student::columns::topic_id.eq(topic.topic_id))
             .count()
             .get_result::<i64>(&mut conn)
             .map_err(|_| {
@@ -466,7 +459,7 @@ pub async fn create_topic(
     session: Session,
     req: web::Json<TopicsPostRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -486,7 +479,7 @@ pub async fn create_topic(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
-    let has_such_teacher: i64 = schema::teacher::dsl::teacher
+    let has_such_teacher: i64 = teacher::dsl::teacher
         .find(user_id)
         .count()
         .get_result(&mut conn)
@@ -508,7 +501,7 @@ pub async fn create_topic(
             topic_review_status: TopicReviewStatus::Pending as i16,
         };
 
-        let inserted_topic = diesel::insert_into(schema::topic::dsl::topic)
+        let inserted_topic = diesel::insert_into(topic::dsl::topic)
             .values(&new_topic)
             .get_result::<Topic>(conn)
             .map_err(|e| {
@@ -533,7 +526,7 @@ pub async fn search_topics(
     session: Session,
     query: web::Query<SearchQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -557,21 +550,18 @@ pub async fn search_topics(
     let (total, topics_with_teacher) = match user_role {
         AuthInfoUserRole::Student => {
             // Student: Get topics approved for their major with keyword search
-            let student_info = schema::student::dsl::student
+            let student_info = student::dsl::student
                 .find(user_id)
                 .first::<Student>(&mut conn)
                 .map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to get student information"))
                 })?;
 
-            let query = schema::topic::table
-                .inner_join(schema::teacher::table)
-                .filter(schema::topic::columns::major_id.eq(student_info.major_id))
-                .filter(
-                    schema::topic::columns::topic_review_status
-                        .eq(TopicReviewStatus::Approved as i16),
-                )
-                .filter(schema::topic::columns::topic_name.like(&search_pattern));
+            let query = topic::table
+                .inner_join(teacher::table)
+                .filter(topic::columns::major_id.eq(student_info.major_id))
+                .filter(topic::columns::topic_review_status.eq(TopicReviewStatus::Approved as i16))
+                .filter(topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -579,17 +569,17 @@ pub async fn search_topics(
             let topics_with_teacher = query
                 .offset(offset)
                 .limit(page_size)
-                .order_by(schema::topic::columns::topic_id.desc())
+                .order_by(topic::columns::topic_id.desc())
                 .load::<(Topic, Teacher)>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
             (total, topics_with_teacher)
         }
         AuthInfoUserRole::Teacher => {
             // Teacher: Get their own topics with keyword search
-            let query = schema::topic::table
-                .inner_join(schema::teacher::table)
-                .filter(schema::topic::columns::user_id.eq(user_id))
-                .filter(schema::topic::columns::topic_name.like(&search_pattern));
+            let query = topic::table
+                .inner_join(teacher::table)
+                .filter(topic::columns::user_id.eq(user_id))
+                .filter(topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -597,16 +587,16 @@ pub async fn search_topics(
             let topics_with_teacher = query
                 .offset(offset)
                 .limit(page_size)
-                .order_by(schema::topic::columns::topic_id.desc())
+                .order_by(topic::columns::topic_id.desc())
                 .load::<(Topic, Teacher)>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
             (total, topics_with_teacher)
         }
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and DefenseBoard: Get all topics with keyword search
-            let query = schema::topic::table
-                .inner_join(schema::teacher::table)
-                .filter(schema::topic::columns::topic_name.like(&search_pattern));
+            let query = topic::table
+                .inner_join(teacher::table)
+                .filter(topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -614,7 +604,7 @@ pub async fn search_topics(
             let topics_with_teacher = query
                 .offset(offset)
                 .limit(page_size)
-                .order_by(schema::topic::columns::topic_id.desc())
+                .order_by(topic::columns::topic_id.desc())
                 .load::<(Topic, Teacher)>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to load topics")))?;
             (total, topics_with_teacher)
@@ -623,8 +613,8 @@ pub async fn search_topics(
 
     let mut topic_briefs = Vec::new();
     for (topic, teacher) in topics_with_teacher {
-        let current_student_count = schema::student::dsl::student
-            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+        let current_student_count = student::dsl::student
+            .filter(student::columns::topic_id.eq(topic.topic_id))
             .count()
             .get_result::<i64>(&mut conn)
             .map_err(|_| {
@@ -655,7 +645,7 @@ pub async fn get_topic_detail(
     session: Session,
     topic_id: web::Path<i32>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -671,32 +661,29 @@ pub async fn get_topic_detail(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     // Why boxed query here? Since we don't need it to be Copy, unlike the previous (count, records) pattern.
-    let mut query_builder = schema::topic::table
-        .inner_join(schema::teacher::table)
-        .inner_join(schema::major::table)
-        .filter(schema::topic::columns::topic_id.eq(*topic_id))
+    let mut query_builder = topic::table
+        .inner_join(teacher::table)
+        .inner_join(major::table)
+        .filter(topic::columns::topic_id.eq(*topic_id))
         .into_boxed();
 
     match user_role {
         AuthInfoUserRole::Student => {
             // Student: Get topics approved for their major
-            let student_info = schema::student::dsl::student
-                .filter(schema::student::columns::user_id.eq(user_id))
+            let student_info = student::dsl::student
+                .filter(student::columns::user_id.eq(user_id))
                 .first::<Student>(&mut conn)
                 .map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to get student information"))
                 })?;
 
             query_builder = query_builder
-                .filter(schema::topic::columns::major_id.eq(student_info.major_id))
-                .filter(
-                    schema::topic::columns::topic_review_status
-                        .eq(TopicReviewStatus::Approved as i16),
-                );
+                .filter(topic::columns::major_id.eq(student_info.major_id))
+                .filter(topic::columns::topic_review_status.eq(TopicReviewStatus::Approved as i16));
         }
         AuthInfoUserRole::Teacher => {
             // Teacher: Get topics created by themselves
-            query_builder = query_builder.filter(schema::topic::columns::user_id.eq(user_id));
+            query_builder = query_builder.filter(topic::columns::user_id.eq(user_id));
         }
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and Defense Board: Get all topics without additional filtering
@@ -712,8 +699,8 @@ pub async fn get_topic_detail(
             }
         })?;
 
-    let current_student_count: i64 = schema::student::dsl::student
-        .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+    let current_student_count: i64 = student::dsl::student
+        .filter(student::columns::topic_id.eq(topic.topic_id))
         .count()
         .get_result(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to count students for topic")))?;
@@ -745,7 +732,7 @@ pub async fn update_topic(
     topic_id: web::Path<i32>,
     req: web::Json<TopicPatchRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -761,7 +748,7 @@ pub async fn update_topic(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     let result = conn.build_transaction().read_write().run(|conn| {
-        let topic = schema::topic::dsl::topic
+        let topic = topic::dsl::topic
             .find(*topic_id)
             .first::<Topic>(conn)
             .map_err(|e| {
@@ -827,10 +814,7 @@ pub async fn update_topic(
                     }
 
                     diesel::update(&topic)
-                        .set(
-                            schema::topic::columns::topic_review_status
-                                .eq(topic_review_status as i16),
-                        )
+                        .set(topic::columns::topic_review_status.eq(topic_review_status as i16))
                         .get_result::<Topic>(conn)
                         .map_err(|e| {
                             ApiError::InternalServerError(format!(
@@ -850,21 +834,21 @@ pub async fn update_topic(
             }
         };
 
-        let teacher = schema::teacher::dsl::teacher
+        let teacher = teacher::dsl::teacher
             .find(topic.user_id)
             .first::<Teacher>(conn)
             .map_err(|e| {
                 ApiError::InternalServerError(format!("Failed to load topic teacher: {}", e))
             })?;
-        let major = schema::major::dsl::major
+        let major = major::dsl::major
             .find(topic.major_id)
             .first::<Major>(conn)
             .map_err(|e| {
                 ApiError::InternalServerError(format!("Failed to load topic major: {}", e))
             })?;
 
-        let current_student_count: i64 = schema::student::dsl::student
-            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+        let current_student_count: i64 = student::dsl::student
+            .filter(student::columns::topic_id.eq(topic.topic_id))
             .count()
             .get_result(conn)
             .map_err(|_| {
@@ -899,7 +883,7 @@ pub async fn get_assignments(
     session: Session,
     query: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
     use chrono::{TimeZone, Utc};
 
     if !is_session_authed(&session) {
@@ -937,14 +921,14 @@ pub async fn get_assignments(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
-    let pending_base = schema::assignmentrequest::table
-        .inner_join(schema::student::table.inner_join(schema::major::table))
-        .inner_join(schema::topic::table);
+    let pending_base = assignmentrequest::table
+        .inner_join(student::table.inner_join(major::table))
+        .inner_join(topic::table);
 
-    let approved_base = schema::student::table
-        .inner_join(schema::major::table)
-        .inner_join(schema::topic::table)
-        .filter(schema::student::columns::topic_id.is_not_null());
+    let approved_base = student::table
+        .inner_join(major::table)
+        .inner_join(topic::table)
+        .filter(student::columns::topic_id.is_not_null());
 
     let (pending_total, pending_rows, approved_total, approved_rows) = if is_admin {
         let pending_total: i64 = pending_base
@@ -952,15 +936,15 @@ pub async fn get_assignments(
             .get_result(&mut conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to count assignments")))?;
         let pending_rows = pending_base
-            .order(schema::assignmentrequest::columns::assn_req_time.desc())
+            .order(assignmentrequest::columns::assn_req_time.desc())
             .limit(want)
             .select((
-                schema::assignmentrequest::columns::user_id,
-                schema::student::columns::student_name,
-                schema::major::columns::major_name,
-                schema::assignmentrequest::columns::topic_id,
-                schema::topic::columns::topic_name,
-                schema::assignmentrequest::columns::assn_req_time,
+                assignmentrequest::columns::user_id,
+                student::columns::student_name,
+                major::columns::major_name,
+                assignmentrequest::columns::topic_id,
+                topic::columns::topic_name,
+                assignmentrequest::columns::assn_req_time,
             ))
             .load::<(
                 i32,
@@ -977,15 +961,15 @@ pub async fn get_assignments(
             .get_result(&mut conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to count assignments")))?;
         let approved_rows = approved_base
-            .order(schema::student::columns::assn_time.desc())
+            .order(student::columns::assn_time.desc())
             .limit(want)
             .select((
-                schema::student::columns::user_id,
-                schema::student::columns::student_name,
-                schema::major::columns::major_name,
-                schema::topic::columns::topic_id,
-                schema::topic::columns::topic_name,
-                schema::student::columns::assn_time,
+                student::columns::user_id,
+                student::columns::student_name,
+                major::columns::major_name,
+                topic::columns::topic_id,
+                topic::columns::topic_name,
+                student::columns::assn_time,
             ))
             .load::<(
                 i32,
@@ -1002,20 +986,20 @@ pub async fn get_assignments(
         match user_role {
             Some(AuthInfoUserRole::Student) => {
                 let pending_q =
-                    pending_base.filter(schema::assignmentrequest::columns::user_id.eq(user_id));
+                    pending_base.filter(assignmentrequest::columns::user_id.eq(user_id));
                 let pending_total: i64 = pending_q.count().get_result(&mut conn).map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to count assignments"))
                 })?;
                 let pending_rows = pending_q
-                    .order(schema::assignmentrequest::columns::assn_req_time.desc())
+                    .order(assignmentrequest::columns::assn_req_time.desc())
                     .limit(want)
                     .select((
-                        schema::assignmentrequest::columns::user_id,
-                        schema::student::columns::student_name,
-                        schema::major::columns::major_name,
-                        schema::assignmentrequest::columns::topic_id,
-                        schema::topic::columns::topic_name,
-                        schema::assignmentrequest::columns::assn_req_time,
+                        assignmentrequest::columns::user_id,
+                        student::columns::student_name,
+                        major::columns::major_name,
+                        assignmentrequest::columns::topic_id,
+                        topic::columns::topic_name,
+                        assignmentrequest::columns::assn_req_time,
                     ))
                     .load::<(
                         i32,
@@ -1029,22 +1013,21 @@ pub async fn get_assignments(
                         ApiError::InternalServerError(str!("Failed to load assignments"))
                     })?;
 
-                let approved_q =
-                    approved_base.filter(schema::student::columns::user_id.eq(user_id));
+                let approved_q = approved_base.filter(student::columns::user_id.eq(user_id));
                 let approved_total: i64 =
                     approved_q.count().get_result(&mut conn).map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to count assignments"))
                     })?;
                 let approved_rows = approved_q
-                    .order(schema::student::columns::assn_time.desc())
+                    .order(student::columns::assn_time.desc())
                     .limit(want)
                     .select((
-                        schema::student::columns::user_id,
-                        schema::student::columns::student_name,
-                        schema::major::columns::major_name,
-                        schema::topic::columns::topic_id,
-                        schema::topic::columns::topic_name,
-                        schema::student::columns::assn_time,
+                        student::columns::user_id,
+                        student::columns::student_name,
+                        major::columns::major_name,
+                        topic::columns::topic_id,
+                        topic::columns::topic_name,
+                        student::columns::assn_time,
                     ))
                     .load::<(
                         i32,
@@ -1061,20 +1044,20 @@ pub async fn get_assignments(
                 (pending_total, pending_rows, approved_total, approved_rows)
             }
             Some(AuthInfoUserRole::Teacher) => {
-                let pending_q = pending_base.filter(schema::topic::columns::user_id.eq(user_id));
+                let pending_q = pending_base.filter(topic::columns::user_id.eq(user_id));
                 let pending_total: i64 = pending_q.count().get_result(&mut conn).map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to count assignments"))
                 })?;
                 let pending_rows = pending_q
-                    .order(schema::assignmentrequest::columns::assn_req_time.desc())
+                    .order(assignmentrequest::columns::assn_req_time.desc())
                     .limit(want)
                     .select((
-                        schema::assignmentrequest::columns::user_id,
-                        schema::student::columns::student_name,
-                        schema::major::columns::major_name,
-                        schema::assignmentrequest::columns::topic_id,
-                        schema::topic::columns::topic_name,
-                        schema::assignmentrequest::columns::assn_req_time,
+                        assignmentrequest::columns::user_id,
+                        student::columns::student_name,
+                        major::columns::major_name,
+                        assignmentrequest::columns::topic_id,
+                        topic::columns::topic_name,
+                        assignmentrequest::columns::assn_req_time,
                     ))
                     .load::<(
                         i32,
@@ -1088,21 +1071,21 @@ pub async fn get_assignments(
                         ApiError::InternalServerError(str!("Failed to load assignments"))
                     })?;
 
-                let approved_q = approved_base.filter(schema::topic::columns::user_id.eq(user_id));
+                let approved_q = approved_base.filter(topic::columns::user_id.eq(user_id));
                 let approved_total: i64 =
                     approved_q.count().get_result(&mut conn).map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to count assignments"))
                     })?;
                 let approved_rows = approved_q
-                    .order(schema::student::columns::assn_time.desc())
+                    .order(student::columns::assn_time.desc())
                     .limit(want)
                     .select((
-                        schema::student::columns::user_id,
-                        schema::student::columns::student_name,
-                        schema::major::columns::major_name,
-                        schema::topic::columns::topic_id,
-                        schema::topic::columns::topic_name,
-                        schema::student::columns::assn_time,
+                        student::columns::user_id,
+                        student::columns::student_name,
+                        major::columns::major_name,
+                        topic::columns::topic_id,
+                        topic::columns::topic_name,
+                        student::columns::assn_time,
                     ))
                     .load::<(
                         i32,
@@ -1170,7 +1153,7 @@ pub async fn create_assignment(
     session: Session,
     req: web::Json<AssignmentsPostRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1189,7 +1172,7 @@ pub async fn create_assignment(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     conn.build_transaction().read_write().run(|conn| {
-        let student = schema::student::dsl::student
+        let student = student::dsl::student
             .find(user_id)
             .first::<Student>(conn)
             .map_err(|_| ApiError::NotFound)?;
@@ -1198,7 +1181,7 @@ pub async fn create_assignment(
             return Err(ApiError::Conflict(str!("Student already has a topic")));
         }
 
-        let topic = schema::topic::dsl::topic
+        let topic = topic::dsl::topic
             .find(req.topic_id)
             .first::<Topic>(conn)
             .map_err(|_| ApiError::NotFound)?;
@@ -1209,8 +1192,8 @@ pub async fn create_assignment(
             return Err(ApiError::Forbidden);
         }
 
-        let current_student_count: i64 = schema::student::dsl::student
-            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+        let current_student_count: i64 = student::dsl::student
+            .filter(student::columns::topic_id.eq(topic.topic_id))
             .count()
             .get_result(conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to count students")))?;
@@ -1219,9 +1202,9 @@ pub async fn create_assignment(
         }
 
         let has_pending = diesel::select(diesel::dsl::exists(
-            schema::assignmentrequest::dsl::assignmentrequest
-                .filter(schema::assignmentrequest::columns::user_id.eq(user_id))
-                .filter(schema::assignmentrequest::columns::topic_id.eq(req.topic_id)),
+            assignmentrequest::dsl::assignmentrequest
+                .filter(assignmentrequest::columns::user_id.eq(user_id))
+                .filter(assignmentrequest::columns::topic_id.eq(req.topic_id)),
         ))
         .get_result(conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to check existing request")))?;
@@ -1231,7 +1214,7 @@ pub async fn create_assignment(
             )));
         }
 
-        diesel::insert_into(schema::assignmentrequest::dsl::assignmentrequest)
+        diesel::insert_into(assignmentrequest::dsl::assignmentrequest)
             .values(NewAssignmentRequest {
                 user_id,
                 topic_id: req.topic_id,
@@ -1253,7 +1236,7 @@ pub async fn update_assignment_status(
     path: web::Path<(i32, i32)>,
     req: web::Json<AssignmentRecordPatchRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1276,12 +1259,12 @@ pub async fn update_assignment_status(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     conn.build_transaction().read_write().run(|conn| {
-        let req_row = schema::assignmentrequest::dsl::assignmentrequest
+        let req_row = assignmentrequest::dsl::assignmentrequest
             .find((student_id, topic_id))
             .first::<AssignmentRequest>(conn)
             .map_err(|_| ApiError::NotFound)?;
 
-        let topic = schema::topic::dsl::topic
+        let topic = topic::dsl::topic
             .find(req_row.topic_id)
             .first::<Topic>(conn)
             .map_err(|_| ApiError::NotFound)?;
@@ -1290,7 +1273,7 @@ pub async fn update_assignment_status(
         }
 
         if req.approved {
-            let student = schema::student::dsl::student
+            let student = student::dsl::student
                 .find(student_id)
                 .first::<Student>(conn)
                 .map_err(|_| ApiError::NotFound)?;
@@ -1298,8 +1281,8 @@ pub async fn update_assignment_status(
                 return Err(ApiError::Conflict(str!("Student already has a topic")));
             }
 
-            let current_student_count: i64 = schema::student::dsl::student
-                .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+            let current_student_count: i64 = student::dsl::student
+                .filter(student::columns::topic_id.eq(topic.topic_id))
                 .count()
                 .get_result(conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to count students")))?;
@@ -1317,11 +1300,11 @@ pub async fn update_assignment_status(
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to assign topic")))?;
         }
 
-        diesel::delete(
-            schema::assignmentrequest::dsl::assignmentrequest.find((student_id, topic_id)),
-        )
-        .execute(conn)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to delete assignment request")))?;
+        diesel::delete(assignmentrequest::dsl::assignmentrequest.find((student_id, topic_id)))
+            .execute(conn)
+            .map_err(|_| {
+                ApiError::InternalServerError(str!("Failed to delete assignment request"))
+            })?;
 
         Ok::<_, ApiError>(())
     })?;
@@ -1334,7 +1317,7 @@ pub async fn get_progress_reports(
     pool: web::Data<DbPool>,
     session: Session,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1354,27 +1337,24 @@ pub async fn get_progress_reports(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
-    let mut base = schema::progressreport::table
-        .inner_join(schema::student::table)
-        .inner_join(schema::topic::table)
+    let mut base = progressreport::table
+        .inner_join(student::table)
+        .inner_join(topic::table)
         .into_boxed();
 
     match user_role {
         AuthInfoUserRole::Student => {
-            base = base.filter(schema::progressreport::columns::user_id.eq(user_id));
+            base = base.filter(progressreport::columns::user_id.eq(user_id));
         }
         AuthInfoUserRole::Teacher => {
-            base = base.filter(schema::topic::columns::user_id.eq(user_id));
+            base = base.filter(topic::columns::user_id.eq(user_id));
         }
         _ => unreachable!(),
     }
 
     let rows = base
-        .order(schema::progressreport::columns::prog_report_time.desc())
-        .select((
-            schema::progressreport::all_columns,
-            schema::student::columns::student_name,
-        ))
+        .order(progressreport::columns::prog_report_time.desc())
+        .select((progressreport::all_columns, student::columns::student_name))
         .load::<(ProgressReport, String)>(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to load progress reports")))?;
 
@@ -1412,7 +1392,7 @@ pub async fn create_progress_report(
     session: Session,
     req: web::Json<ProgressReportsPostRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1431,7 +1411,7 @@ pub async fn create_progress_report(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     conn.build_transaction().read_write().run(|conn| {
-        let student = schema::student::dsl::student
+        let student = student::dsl::student
             .find(user_id)
             .first::<Student>(conn)
             .map_err(|_| ApiError::NotFound)?;
@@ -1441,15 +1421,14 @@ pub async fn create_progress_report(
 
         // Determine report type: proposal first, then midterm after proposal passed.
         let has_passed_proposal = diesel::select(diesel::dsl::exists(
-            schema::progressreport::dsl::progressreport
-                .filter(schema::progressreport::columns::user_id.eq(user_id))
+            progressreport::dsl::progressreport
+                .filter(progressreport::columns::user_id.eq(user_id))
                 .filter(
-                    schema::progressreport::columns::prog_report_type
+                    progressreport::columns::prog_report_type
                         .eq(ProgressReportType::Proposal as i16),
                 )
                 .filter(
-                    schema::progressreport::columns::prog_report_outcome
-                        .eq(ProgressOutcome::Passed as i16),
+                    progressreport::columns::prog_report_outcome.eq(ProgressOutcome::Passed as i16),
                 ),
         ))
         .get_result::<bool>(conn)
@@ -1463,11 +1442,11 @@ pub async fn create_progress_report(
 
         // Enforce: per (student, type) at most one pending and one passed.
         let has_pending = diesel::select(diesel::dsl::exists(
-            schema::progressreport::dsl::progressreport
-                .filter(schema::progressreport::columns::user_id.eq(user_id))
-                .filter(schema::progressreport::columns::prog_report_type.eq(report_type as i16))
+            progressreport::dsl::progressreport
+                .filter(progressreport::columns::user_id.eq(user_id))
+                .filter(progressreport::columns::prog_report_type.eq(report_type as i16))
                 .filter(
-                    schema::progressreport::columns::prog_report_outcome
+                    progressreport::columns::prog_report_outcome
                         .eq(ProgressOutcome::NoConclusion as i16),
                 ),
         ))
@@ -1478,12 +1457,11 @@ pub async fn create_progress_report(
         }
 
         let has_passed = diesel::select(diesel::dsl::exists(
-            schema::progressreport::dsl::progressreport
-                .filter(schema::progressreport::columns::user_id.eq(user_id))
-                .filter(schema::progressreport::columns::prog_report_type.eq(report_type as i16))
+            progressreport::dsl::progressreport
+                .filter(progressreport::columns::user_id.eq(user_id))
+                .filter(progressreport::columns::prog_report_type.eq(report_type as i16))
                 .filter(
-                    schema::progressreport::columns::prog_report_outcome
-                        .eq(ProgressOutcome::Passed as i16),
+                    progressreport::columns::prog_report_outcome.eq(ProgressOutcome::Passed as i16),
                 ),
         ))
         .get_result::<bool>(conn)
@@ -1492,7 +1470,7 @@ pub async fn create_progress_report(
             return Err(ApiError::Conflict(str!("A passed report already exists")));
         }
 
-        diesel::insert_into(schema::progressreport::dsl::progressreport)
+        diesel::insert_into(progressreport::dsl::progressreport)
             .values(NewProgressReport {
                 topic_id,
                 user_id,
@@ -1519,7 +1497,7 @@ pub async fn update_progress_report(
     report_id: web::Path<i32>,
     req: web::Json<ProgressReportRecordPatchRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1539,15 +1517,15 @@ pub async fn update_progress_report(
 
     let result = conn.build_transaction().read_write().run(|conn| {
         let (report, student_name, topic_name, teacher_id): (ProgressReport, String, String, i32) =
-            schema::progressreport::table
-                .inner_join(schema::student::table)
-                .inner_join(schema::topic::table)
-                .filter(schema::progressreport::columns::prog_report_id.eq(*report_id))
+            progressreport::table
+                .inner_join(student::table)
+                .inner_join(topic::table)
+                .filter(progressreport::columns::prog_report_id.eq(*report_id))
                 .select((
-                    schema::progressreport::all_columns,
-                    schema::student::columns::student_name,
-                    schema::topic::columns::topic_name,
-                    schema::topic::columns::user_id,
+                    progressreport::all_columns,
+                    student::columns::student_name,
+                    topic::columns::topic_name,
+                    topic::columns::user_id,
                 ))
                 .first(conn)
                 .map_err(|_| ApiError::NotFound)?;
@@ -1560,20 +1538,16 @@ pub async fn update_progress_report(
         match req.outcome {
             ProgressOutcome::NoConclusion => {
                 let other_pending = diesel::select(diesel::dsl::exists(
-                    schema::progressreport::dsl::progressreport
-                        .filter(schema::progressreport::columns::user_id.eq(report.user_id))
+                    progressreport::dsl::progressreport
+                        .filter(progressreport::columns::user_id.eq(report.user_id))
                         .filter(
-                            schema::progressreport::columns::prog_report_type
-                                .eq(report.prog_report_type),
+                            progressreport::columns::prog_report_type.eq(report.prog_report_type),
                         )
                         .filter(
-                            schema::progressreport::columns::prog_report_outcome
+                            progressreport::columns::prog_report_outcome
                                 .eq(ProgressOutcome::NoConclusion as i16),
                         )
-                        .filter(
-                            schema::progressreport::columns::prog_report_id
-                                .ne(report.prog_report_id),
-                        ),
+                        .filter(progressreport::columns::prog_report_id.ne(report.prog_report_id)),
                 ))
                 .get_result::<bool>(conn)
                 .map_err(|_| {
@@ -1587,20 +1561,16 @@ pub async fn update_progress_report(
             }
             ProgressOutcome::Passed => {
                 let other_passed = diesel::select(diesel::dsl::exists(
-                    schema::progressreport::dsl::progressreport
-                        .filter(schema::progressreport::columns::user_id.eq(report.user_id))
+                    progressreport::dsl::progressreport
+                        .filter(progressreport::columns::user_id.eq(report.user_id))
                         .filter(
-                            schema::progressreport::columns::prog_report_type
-                                .eq(report.prog_report_type),
+                            progressreport::columns::prog_report_type.eq(report.prog_report_type),
                         )
                         .filter(
-                            schema::progressreport::columns::prog_report_outcome
+                            progressreport::columns::prog_report_outcome
                                 .eq(ProgressOutcome::Passed as i16),
                         )
-                        .filter(
-                            schema::progressreport::columns::prog_report_id
-                                .ne(report.prog_report_id),
-                        ),
+                        .filter(progressreport::columns::prog_report_id.ne(report.prog_report_id)),
                 ))
                 .get_result::<bool>(conn)
                 .map_err(|_| {
@@ -1615,16 +1585,16 @@ pub async fn update_progress_report(
             ProgressOutcome::Rejected => {}
         }
 
-        diesel::update(schema::progressreport::dsl::progressreport.find(report.prog_report_id))
+        diesel::update(progressreport::dsl::progressreport.find(report.prog_report_id))
             .set((
-                schema::progressreport::columns::prog_report_outcome.eq(req.outcome as i16),
-                schema::progressreport::columns::prog_report_comment.eq(req.comment.clone()),
-                schema::progressreport::columns::prog_report_grade.eq(req.grade.clone()),
+                progressreport::columns::prog_report_outcome.eq(req.outcome as i16),
+                progressreport::columns::prog_report_comment.eq(req.comment.clone()),
+                progressreport::columns::prog_report_grade.eq(req.grade.clone()),
             ))
             .execute(conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to update progress report")))?;
 
-        let updated = schema::progressreport::dsl::progressreport
+        let updated = progressreport::dsl::progressreport
             .find(report.prog_report_id)
             .first::<ProgressReport>(conn)
             .map_err(|_| ApiError::NotFound)?;
@@ -1655,7 +1625,7 @@ pub async fn get_final_defenses(
     pool: web::Data<DbPool>,
     session: Session,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1675,30 +1645,30 @@ pub async fn get_final_defenses(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
-    let mut base = schema::finaldefense::table
-        .inner_join(schema::student::table)
-        .inner_join(schema::topic::table)
+    let mut base = finaldefense::table
+        .inner_join(student::table)
+        .inner_join(topic::table)
         .into_boxed();
 
     match user_role {
         AuthInfoUserRole::Student => {
-            base = base.filter(schema::finaldefense::columns::user_id.eq(user_id));
+            base = base.filter(finaldefense::columns::user_id.eq(user_id));
         }
         AuthInfoUserRole::Teacher => {
-            base = base.filter(schema::topic::columns::user_id.eq(user_id));
+            base = base.filter(topic::columns::user_id.eq(user_id));
         }
         AuthInfoUserRole::DefenseBoard => {
-            base = base.filter(schema::finaldefense::columns::def_user_id.eq(user_id));
+            base = base.filter(finaldefense::columns::def_user_id.eq(user_id));
         }
         _ => unreachable!(),
     }
 
     let rows = base
-        .order(schema::finaldefense::columns::final_def_time.desc())
+        .order(finaldefense::columns::final_def_time.desc())
         .select((
-            schema::finaldefense::all_columns,
-            schema::student::columns::student_name,
-            schema::topic::columns::topic_name,
+            finaldefense::all_columns,
+            student::columns::student_name,
+            topic::columns::topic_name,
         ))
         .load::<(FinalDefense, String, String)>(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to load final defenses")))?;
@@ -1733,7 +1703,7 @@ pub async fn create_final_defense(
     session: Session,
     req: web::Json<FinalDefensesPostRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1752,7 +1722,7 @@ pub async fn create_final_defense(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     conn.build_transaction().read_write().run(|conn| {
-        let student = schema::student::dsl::student
+        let student = student::dsl::student
             .find(user_id)
             .first::<Student>(conn)
             .map_err(|_| ApiError::NotFound)?;
@@ -1762,9 +1732,9 @@ pub async fn create_final_defense(
 
         // Enforce: per student, at most one pending (NULL) and one passed (true).
         let has_pending = diesel::select(diesel::dsl::exists(
-            schema::finaldefense::dsl::finaldefense
-                .filter(schema::finaldefense::columns::user_id.eq(user_id))
-                .filter(schema::finaldefense::columns::final_def_outcome.is_null()),
+            finaldefense::dsl::finaldefense
+                .filter(finaldefense::columns::user_id.eq(user_id))
+                .filter(finaldefense::columns::final_def_outcome.is_null()),
         ))
         .get_result::<bool>(conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to check pending defenses")))?;
@@ -1775,9 +1745,9 @@ pub async fn create_final_defense(
         }
 
         let has_passed = diesel::select(diesel::dsl::exists(
-            schema::finaldefense::dsl::finaldefense
-                .filter(schema::finaldefense::columns::user_id.eq(user_id))
-                .filter(schema::finaldefense::columns::final_def_outcome.eq(true)),
+            finaldefense::dsl::finaldefense
+                .filter(finaldefense::columns::user_id.eq(user_id))
+                .filter(finaldefense::columns::final_def_outcome.eq(true)),
         ))
         .get_result::<bool>(conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to check passed defenses")))?;
@@ -1787,7 +1757,7 @@ pub async fn create_final_defense(
             )));
         }
 
-        diesel::insert_into(schema::finaldefense::dsl::finaldefense)
+        diesel::insert_into(finaldefense::dsl::finaldefense)
             .values(NewFinalDefense {
                 topic_id,
                 user_id,
@@ -1814,7 +1784,7 @@ pub async fn update_final_defense(
     report_id: web::Path<i32>,
     req: web::Json<FinalDefensesRecordPatchRequest>,
 ) -> Result<HttpResponse, ApiError> {
-    use backend_database::schema;
+    use backend_database::schema::*;
 
     if !is_session_authed(&session) {
         return Err(ApiError::Unauthorized);
@@ -1838,15 +1808,15 @@ pub async fn update_final_defense(
                     String,
                     String,
                     i32,
-                ) = schema::finaldefense::table
-                    .inner_join(schema::student::table)
-                    .inner_join(schema::topic::table)
-                    .filter(schema::finaldefense::columns::final_def_id.eq(*report_id))
+                ) = finaldefense::table
+                    .inner_join(student::table)
+                    .inner_join(topic::table)
+                    .filter(finaldefense::columns::final_def_id.eq(*report_id))
                     .select((
-                        schema::finaldefense::all_columns,
-                        schema::student::columns::student_name,
-                        schema::topic::columns::topic_name,
-                        schema::topic::columns::user_id,
+                        finaldefense::all_columns,
+                        student::columns::student_name,
+                        topic::columns::topic_name,
+                        topic::columns::user_id,
                     ))
                     .first(conn)
                     .map_err(|_| ApiError::NotFound)?;
@@ -1861,13 +1831,11 @@ pub async fn update_final_defense(
                 }
 
                 if !req.approved {
-                    diesel::delete(
-                        schema::finaldefense::dsl::finaldefense.find(defense.final_def_id),
-                    )
-                    .execute(conn)
-                    .map_err(|_| {
-                        ApiError::InternalServerError(str!("Failed to delete final defense"))
-                    })?;
+                    diesel::delete(finaldefense::dsl::finaldefense.find(defense.final_def_id))
+                        .execute(conn)
+                        .map_err(|_| {
+                            ApiError::InternalServerError(str!("Failed to delete final defense"))
+                        })?;
 
                     // Return details of the deleted record (pre-delete).
                     return Ok(FinalDefenseDetails {
@@ -1894,9 +1862,9 @@ pub async fn update_final_defense(
                 // We compute counts via GROUP BY, then pick the minimum in Rust to keep the Diesel types simple.
                 use std::collections::HashMap;
 
-                let defense_board_ids = schema::defenseboard::dsl::defenseboard
-                    .select(schema::defenseboard::columns::user_id)
-                    .order(schema::defenseboard::columns::user_id.asc())
+                let defense_board_ids = defenseboard::dsl::defenseboard
+                    .select(defenseboard::columns::user_id)
+                    .order(defenseboard::columns::user_id.asc())
                     .load::<i32>(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to load defense boards"))
@@ -1905,12 +1873,12 @@ pub async fn update_final_defense(
                     return Err(ApiError::Conflict(str!("No defense board available")));
                 }
 
-                let pending_counts = schema::finaldefense::dsl::finaldefense
-                    .filter(schema::finaldefense::columns::final_def_outcome.is_null())
-                    .filter(schema::finaldefense::columns::def_user_id.is_not_null())
-                    .group_by(schema::finaldefense::columns::def_user_id)
+                let pending_counts = finaldefense::dsl::finaldefense
+                    .filter(finaldefense::columns::final_def_outcome.is_null())
+                    .filter(finaldefense::columns::def_user_id.is_not_null())
+                    .group_by(finaldefense::columns::def_user_id)
                     .select((
-                        schema::finaldefense::columns::def_user_id,
+                        finaldefense::columns::def_user_id,
                         diesel::dsl::count_star(),
                     ))
                     .load::<(Option<i32>, i64)>(conn)
@@ -1936,17 +1904,14 @@ pub async fn update_final_defense(
                     }
                 }
 
-                diesel::update(schema::finaldefense::dsl::finaldefense.find(defense.final_def_id))
-                    .set(
-                        schema::finaldefense::columns::def_user_id
-                            .eq(Some(assigned_defense_board_id)),
-                    )
+                diesel::update(finaldefense::dsl::finaldefense.find(defense.final_def_id))
+                    .set(finaldefense::columns::def_user_id.eq(Some(assigned_defense_board_id)))
                     .execute(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to assign defense board"))
                     })?;
 
-                let updated = schema::finaldefense::dsl::finaldefense
+                let updated = finaldefense::dsl::finaldefense
                     .find(defense.final_def_id)
                     .first::<FinalDefense>(conn)
                     .map_err(|_| ApiError::NotFound)?;
@@ -1970,14 +1935,14 @@ pub async fn update_final_defense(
                 FinalDefensesRecordPatchRequest::DefenseBoard(req),
             ) => {
                 let (defense, student_name, topic_name): (FinalDefense, String, String) =
-                    schema::finaldefense::table
-                        .inner_join(schema::student::table)
-                        .inner_join(schema::topic::table)
-                        .filter(schema::finaldefense::columns::final_def_id.eq(*report_id))
+                    finaldefense::table
+                        .inner_join(student::table)
+                        .inner_join(topic::table)
+                        .filter(finaldefense::columns::final_def_id.eq(*report_id))
                         .select((
-                            schema::finaldefense::all_columns,
-                            schema::student::columns::student_name,
-                            schema::topic::columns::topic_name,
+                            finaldefense::all_columns,
+                            student::columns::student_name,
+                            topic::columns::topic_name,
                         ))
                         .first(conn)
                         .map_err(|_| ApiError::NotFound)?;
@@ -1989,13 +1954,10 @@ pub async fn update_final_defense(
                 // Enforce: per student, at most one passed (true).
                 if req.outcome {
                     let other_passed = diesel::select(diesel::dsl::exists(
-                        schema::finaldefense::dsl::finaldefense
-                            .filter(schema::finaldefense::columns::user_id.eq(defense.user_id))
-                            .filter(schema::finaldefense::columns::final_def_outcome.eq(true))
-                            .filter(
-                                schema::finaldefense::columns::final_def_id
-                                    .ne(defense.final_def_id),
-                            ),
+                        finaldefense::dsl::finaldefense
+                            .filter(finaldefense::columns::user_id.eq(defense.user_id))
+                            .filter(finaldefense::columns::final_def_outcome.eq(true))
+                            .filter(finaldefense::columns::final_def_id.ne(defense.final_def_id)),
                     ))
                     .get_result::<bool>(conn)
                     .map_err(|_| {
@@ -2008,19 +1970,18 @@ pub async fn update_final_defense(
                     }
                 }
 
-                diesel::update(schema::finaldefense::dsl::finaldefense.find(defense.final_def_id))
+                diesel::update(finaldefense::dsl::finaldefense.find(defense.final_def_id))
                     .set((
-                        schema::finaldefense::columns::final_def_outcome.eq(Some(req.outcome)),
-                        schema::finaldefense::columns::final_def_comment
-                            .eq(Some(req.comment.clone())),
-                        schema::finaldefense::columns::final_def_grade.eq(Some(req.grade.clone())),
+                        finaldefense::columns::final_def_outcome.eq(Some(req.outcome)),
+                        finaldefense::columns::final_def_comment.eq(Some(req.comment.clone())),
+                        finaldefense::columns::final_def_grade.eq(Some(req.grade.clone())),
                     ))
                     .execute(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to update final defense"))
                     })?;
 
-                let updated = schema::finaldefense::dsl::finaldefense
+                let updated = finaldefense::dsl::finaldefense
                     .find(defense.final_def_id)
                     .first::<FinalDefense>(conn)
                     .map_err(|_| ApiError::NotFound)?;
