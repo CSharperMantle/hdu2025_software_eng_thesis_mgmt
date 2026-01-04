@@ -14,6 +14,14 @@ pub struct SysUser {
     pub user_avatar: Option<String>,
 }
 
+#[derive(AsChangeset, Debug, Clone)]
+#[diesel(table_name = crate::schema::sysuser)]
+pub struct SysUserChangeset {
+    pub user_password_hash: Option<Vec<u8>>,
+    pub user_password_salt: Option<Vec<u8>>,
+    pub user_avatar: Option<Option<String>>,
+}
+
 #[derive(Identifiable, Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[diesel(primary_key(major_id))]
 #[diesel(table_name = crate::schema::major)]
@@ -153,6 +161,13 @@ pub struct Student {
     pub major_id: i32,
     pub student_name: String,
     pub assn_time: Option<DateTime<Utc>>,
+}
+
+#[derive(AsChangeset, Debug, Clone)]
+#[diesel(table_name = crate::schema::student)]
+pub struct StudentAssignmentChangeset {
+    pub topic_id: i32,
+    pub assn_time: DateTime<Utc>,
 }
 
 #[derive(
