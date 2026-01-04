@@ -286,7 +286,7 @@ pub struct FinalDefenseDetails {
     pub topic_name: String,
     pub student_id: i32,
     pub student_name: String,
-    pub defense_board_id: i32,
+    pub defense_board_id: Option<i32>,
     pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: String,
     pub final_def_outcome: Option<bool>,

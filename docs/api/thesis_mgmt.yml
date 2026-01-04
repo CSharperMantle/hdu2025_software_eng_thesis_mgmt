@@ -102,6 +102,12 @@ paths:
       tags:
         - user
       summary: 创建新用户
+      description: |-
+        系统管理员有权创建新用户。
+
+        ## 有访问权角色
+
+        * `admin`
       requestBody:
         required: true
         content:
@@ -136,7 +142,7 @@ paths:
 
         * `teacher`：返回自己创建的所有课题
 
-        * `office`、`admin`：返回所有课题
+        * `office`：返回所有课题
 
         所有符合条件的记录按页分组，返回 `[(page-1)*page_size, page_size[` 范围内的记录。
 
@@ -147,8 +153,6 @@ paths:
         * `teacher`
 
         * `office`
-
-        * `admin`
       parameters:
         - name: page
           in: query
@@ -220,7 +224,7 @@ paths:
 
         * `teacher`：检索自己创建的所有课题
 
-        * `office`、`admin`：检索所有课题
+        * `office`：检索所有课题
 
         所有符合条件的记录按页分组，返回 `[(page-1)*page_size, page_size[` 范围内的记录。
 
@@ -231,8 +235,6 @@ paths:
         * `teacher`
 
         * `office`
-
-        * `admin`
       parameters:
         - name: keyword
           in: query
@@ -280,7 +282,7 @@ paths:
 
         * `teacher`：获取自己创建的所有课题
 
-        * `office`、`admin`：获取所有课题
+        * `office`：获取所有课题
 
         ## 有访问权角色
 
@@ -289,8 +291,6 @@ paths:
         * `teacher`
 
         * `office`
-
-        * `admin`
       parameters:
         - name: topic_id
           description: 课题序号
@@ -322,15 +322,11 @@ paths:
 
         * `office`：修改教师创建的课题审核状态；
 
-        * `admin`：修改所有课题信息和审核状态。
-
         ## 有访问权角色
 
         * `teacher`
 
         * `office`
-
-        * `admin`
       parameters:
         - name: topic_id
           description: 课题序号
@@ -375,8 +371,6 @@ paths:
 
         * `teacher`：返回自己课题的所有选题申请
 
-        * `admin`：返回所有选题申请
-
         所有符合条件的记录按页分组，返回 `[(page-1)*page_size, page_size[` 范围内的记录。
 
         ## 有访问权角色
@@ -384,8 +378,6 @@ paths:
         * `student`
 
         * `teacher`
-
-        * `admin`
       parameters:
         - name: page
           in: query
@@ -423,8 +415,6 @@ paths:
         ## 有访问权角色
 
         * `student`
-
-        * `admin`
       requestBody:
         required: true
         content:
@@ -456,8 +446,6 @@ paths:
         ## 有访问权角色
 
         * `teacher`
-
-        * `admin`
       parameters:
         - name: student_id
           description: 学生序号
@@ -508,8 +496,6 @@ paths:
         * `student`
 
         * `teacher`
-
-        * `admin`
       responses:
         "200":
           description: 进展内容列表
@@ -535,8 +521,6 @@ paths:
         ## 有访问权角色
 
         * `student`
-
-        * `admin`
       requestBody:
         required: true
         content:
@@ -570,8 +554,6 @@ paths:
         ## 有访问权角色
 
         * `teacher`
-
-        * `admin`
       parameters:
         - name: report_id
           description: 进展序号
@@ -617,8 +599,6 @@ paths:
 
         * `defense_group`：返回自己参与的答辩信息
 
-        * `admin`：返回所有答辩信息
-
         ## 有访问权角色
 
         * `student`
@@ -626,8 +606,6 @@ paths:
         * `teacher`
 
         * `defense_group`
-
-        * `admin`
       responses:
         "200":
           description: 结项答辩进展内容列表
@@ -646,15 +624,13 @@ paths:
         - progress
       summary: 提交结项答辩申请
       description: |
-        学生提交结项答辩申请，默认状态为“无结论”。
+        学生提交结项答辩申请，默认状态为“无结论”、“未分配答辩组”。
 
         每名学生仅能存在一条通过、一条无结论的答辩进展记录，但是可以有多条被打回的记录。
 
         ## 有访问权角色
 
         * `student`
-
-        * `admin`
       requestBody:
         required: true
         content:
@@ -677,15 +653,19 @@ paths:
         - progress
       summary: 更新结项答辩进展
       description: |
-        答辩组更新结项答辩信息，填写结果、评语和成绩。
+        根据用户身份更新结项答辩信息的不同字段：
+
+        * `teacher`：审核结项答辩申请，若拒绝则该条记录被删除，若通过则由系统分配任务数最少的答辩组；
+
+        * `defense_group`：更新结项答辩信息，填写结果、评语和成绩。
 
         每名学生仅能存在一条通过、一条待审核的答辩进展记录，但是可以有多条被打回的记录。
 
         ## 有访问权角色
 
-        * `defense_group`
+        * `teacher`
 
-        * `admin`
+        * `defense_group`
       parameters:
         - name: report_id
           description: 结项答辩进展序号
@@ -698,7 +678,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/FinalDefensesRecordPatchRequest"
+              oneOf:
+                - $ref: "#/components/schemas/FinalDefensesRecordTeacherPatchRequest"
+                - $ref: "#/components/schemas/FinalDefensesRecordDefenseBoardPatchRequest"
       responses:
         "200":
           description: 结项答辩进展更新成功
@@ -1217,7 +1199,6 @@ components:
         - topic_name
         - student_id
         - student_name
-        - defense_board_id
         - final_def_time
         - final_def_attachment
     FinalDefensesPostRequest:
@@ -1228,7 +1209,15 @@ components:
           description: 结项答辩附件 Data URI
       required:
         - attachment
-    FinalDefensesRecordPatchRequest:
+    FinalDefensesRecordTeacherPatchRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+          description: 结项答辩申请审核意见
+      required:
+        - approved
+    FinalDefensesRecordDefenseBoardPatchRequest:
       type: object
       properties:
         outcome:
