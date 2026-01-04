@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Identifiable, Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[diesel(primary_key(user_id))]
 #[diesel(table_name = crate::schema::sysuser)]
 pub struct SysUser {
     pub user_id: i32,
@@ -13,14 +14,26 @@ pub struct SysUser {
     pub user_avatar: Option<String>,
 }
 
-#[derive(Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Identifiable, Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[diesel(primary_key(major_id))]
 #[diesel(table_name = crate::schema::major)]
 pub struct Major {
     pub major_id: i32,
     pub major_name: String,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(user_id))]
 #[diesel(belongs_to(SysUser, foreign_key = user_id))]
 #[diesel(table_name = crate::schema::teacher)]
 pub struct Teacher {
@@ -28,28 +41,72 @@ pub struct Teacher {
     pub teacher_name: String,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(user_id))]
 #[diesel(belongs_to(SysUser, foreign_key = user_id))]
 #[diesel(table_name = crate::schema::sysadmin)]
 pub struct SysAdmin {
     pub user_id: i32,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(user_id))]
 #[diesel(belongs_to(SysUser, foreign_key = user_id))]
 #[diesel(table_name = crate::schema::office)]
 pub struct Office {
     pub user_id: i32,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(user_id))]
 #[diesel(belongs_to(SysUser, foreign_key = user_id))]
 #[diesel(table_name = crate::schema::defenseboard)]
 pub struct DefenseBoard {
     pub user_id: i32,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(topic_id))]
 #[diesel(belongs_to(Major, foreign_key = major_id))]
 #[diesel(belongs_to(Teacher, foreign_key = user_id))]
 #[diesel(table_name = crate::schema::topic)]
@@ -64,7 +121,28 @@ pub struct Topic {
     pub topic_review_status: i16,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(AsChangeset, Debug, Clone)]
+#[diesel(table_name = crate::schema::topic)]
+pub struct TopicChangeset {
+    pub topic_name: Option<String>,
+    pub topic_description: Option<String>,
+    pub topic_max_students: Option<i32>,
+    pub topic_type: Option<i16>,
+    pub topic_review_status: Option<i16>,
+}
+
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(user_id))]
 #[diesel(belongs_to(SysUser, foreign_key = user_id))]
 #[diesel(belongs_to(Major, foreign_key = major_id))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
@@ -77,7 +155,18 @@ pub struct Student {
     pub assn_time: Option<DateTime<Utc>>,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(user_id, topic_id))]
 #[diesel(belongs_to(Student, foreign_key = user_id))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
 #[diesel(table_name = crate::schema::assignmentrequest)]
@@ -87,7 +176,18 @@ pub struct AssignmentRequest {
     pub assn_req_time: DateTime<Utc>,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(prog_report_id))]
 #[diesel(belongs_to(Student, foreign_key = user_id))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
 #[diesel(table_name = crate::schema::progressreport)]
@@ -103,7 +203,18 @@ pub struct ProgressReport {
     pub prog_report_grade: Option<BigDecimal>,
 }
 
-#[derive(Queryable, Selectable, Associations, Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(
+    Identifiable,
+    Queryable,
+    Selectable,
+    Associations,
+    Debug,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+)]
+#[diesel(primary_key(final_def_id))]
 #[diesel(belongs_to(Student, foreign_key = user_id))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
 #[diesel(belongs_to(DefenseBoard, foreign_key = def_user_id))]

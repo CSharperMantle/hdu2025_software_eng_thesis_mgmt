@@ -113,7 +113,7 @@ pub async fn get_current_user(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     let sys_user = schema::sysuser::dsl::sysuser
-        .filter(schema::sysuser::columns::user_id.eq(user_id))
+        .find(user_id)
         .first::<SysUser>(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user information")))?;
 
@@ -125,14 +125,14 @@ pub async fn get_current_user(
         };
         schema::student::dsl::student => Student => {
             let student = schema::student::dsl::student
-                .filter(schema::student::columns::user_id.eq(user_id))
+                .find(user_id)
                 .first::<Student>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to get student information")))?;
             Ok((UserRole::Student, Some(student.student_name)))
         };
         schema::teacher::dsl::teacher => Teacher => {
             let teacher = schema::teacher::dsl::teacher
-                .filter(schema::teacher::columns::user_id.eq(user_id))
+                .find(user_id)
                 .first::<Teacher>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to get teacher information")))?;
             Ok((UserRole::Teacher, Some(teacher.teacher_name)))
@@ -178,60 +178,50 @@ pub async fn update_current_user(
             let (hash, salt) = hash_password(password)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to hash password")))?;
 
-            diesel::update(
-                schema::sysuser::dsl::sysuser.filter(schema::sysuser::columns::user_id.eq(user_id)),
-            )
-            .set((
-                schema::sysuser::columns::user_password_hash.eq(hash),
-                schema::sysuser::columns::user_password_salt.eq(salt),
-            ))
-            .execute(conn)
-            .map_err(|_| ApiError::InternalServerError(str!("Failed to update password")))?;
+            diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
+                .set((
+                    schema::sysuser::columns::user_password_hash.eq(hash),
+                    schema::sysuser::columns::user_password_salt.eq(salt),
+                ))
+                .execute(conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to update password")))?;
         }
 
         if let Some(ref avatar) = req.avatar {
-            diesel::update(
-                schema::sysuser::dsl::sysuser.filter(schema::sysuser::columns::user_id.eq(user_id)),
-            )
-            .set(schema::sysuser::columns::user_avatar.eq(avatar))
-            .execute(conn)
-            .map_err(|_| ApiError::InternalServerError(str!("Failed to update avatar")))?;
+            diesel::update(schema::sysuser::dsl::sysuser.find(user_id))
+                .set(schema::sysuser::columns::user_avatar.eq(avatar))
+                .execute(conn)
+                .map_err(|_| ApiError::InternalServerError(str!("Failed to update avatar")))?;
         }
 
         if let Some(ref name) = req.name {
             // Is student?
             if diesel::select(diesel::dsl::exists(
-                schema::student::dsl::student.filter(schema::student::columns::user_id.eq(user_id)),
+                schema::student::dsl::student.find(user_id),
             ))
             .get_result::<bool>(conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
             {
-                diesel::update(
-                    schema::student::dsl::student
-                        .filter(schema::student::columns::user_id.eq(user_id)),
-                )
-                .set(schema::student::columns::student_name.eq(name))
-                .execute(conn)
-                .map_err(|_| {
-                    ApiError::InternalServerError(str!("Failed to update student name"))
-                })?;
+                diesel::update(schema::student::dsl::student.find(user_id))
+                    .set(schema::student::columns::student_name.eq(name))
+                    .execute(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to update student name"))
+                    })?;
             }
             // Is teacher?
             else if diesel::select(diesel::dsl::exists(
-                schema::teacher::dsl::teacher.filter(schema::teacher::columns::user_id.eq(user_id)),
+                schema::teacher::dsl::teacher.find(user_id),
             ))
             .get_result::<bool>(conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
             {
-                diesel::update(
-                    schema::teacher::dsl::teacher
-                        .filter(schema::teacher::columns::user_id.eq(user_id)),
-                )
-                .set(schema::teacher::columns::teacher_name.eq(name))
-                .execute(conn)
-                .map_err(|_| {
-                    ApiError::InternalServerError(str!("Failed to update teacher name"))
-                })?;
+                diesel::update(schema::teacher::dsl::teacher.find(user_id))
+                    .set(schema::teacher::columns::teacher_name.eq(name))
+                    .execute(conn)
+                    .map_err(|_| {
+                        ApiError::InternalServerError(str!("Failed to update teacher name"))
+                    })?;
             }
         }
 
@@ -756,205 +746,137 @@ pub async fn update_topic(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
-    // First, check if the topic exists and get current topic info
-    let topic = schema::topic::dsl::topic
-        .find(*topic_id)
-        .first::<Topic>(&mut conn)
-        .map_err(|e| {
-            if let diesel::result::Error::NotFound = e {
-                ApiError::NotFound
-            } else {
-                ApiError::InternalServerError(str!("Failed to load topic"))
-            }
-        })?;
-
-    // Check permissions based on user role
-    match user_role {
-        AuthInfoUserRole::Teacher => {
-            // Teacher can only update topics they created
-            if topic.user_id != user_id {
-                return Err(ApiError::Forbidden);
-            }
-
-            // For teacher updates, we need to ensure the request is Teacher type
-            if req.topic_review_status.is_some() {
-                return Err(ApiError::BadRequest(str!(
-                    "Teachers cannot update review status"
-                )));
-            }
-
-            conn.build_transaction().read_write().run(|conn| {
-                // Build update fields using a tuple approach
-                let mut update_fields: Vec<
-                    Box<dyn diesel::query_builder::QueryFragment<diesel::pg::Pg> + Send>,
-                > = Vec::new();
-
-                if let Some(topic_name) = &req.topic_name {
-                    update_fields.push(Box::new(schema::topic::columns::topic_name.eq(topic_name)));
+    let result = conn.build_transaction().read_write().run(|conn| {
+        let topic = schema::topic::dsl::topic
+            .find(*topic_id)
+            .first::<Topic>(conn)
+            .map_err(|e| {
+                if let diesel::result::Error::NotFound = e {
+                    ApiError::NotFound
+                } else {
+                    ApiError::InternalServerError(str!("Failed to load topic"))
                 }
-                if let Some(topic_description) = &req.topic_description {
-                    update_fields.push(Box::new(
-                        schema::topic::columns::topic_description.eq(topic_description),
-                    ));
-                }
-                if let Some(topic_max_students) = req.topic_max_students {
-                    update_fields.push(Box::new(
-                        schema::topic::columns::topic_max_students.eq(topic_max_students),
-                    ));
-                }
-                if let Some(topic_type) = req.topic_type {
-                    update_fields.push(Box::new(
-                        schema::topic::columns::topic_type.eq(topic_type as i16),
-                    ));
+            })?;
+
+        let topic = match user_role {
+            AuthInfoUserRole::Teacher => {
+                // Is a teacher!
+                if topic.user_id != user_id {
+                    // Teacher can only update topics they created
+                    return Err(ApiError::Forbidden);
                 }
 
-                // When teacher updates, set review status to Pending
-                update_fields.push(Box::new(
-                    schema::topic::columns::topic_review_status
-                        .eq(TopicReviewStatus::Pending as i16),
-                ));
-
-                // The update_fields vector is no longer used with the new approach
-                // We'll keep it declared but unused to avoid changing too much code structure
-
-                // Instead, let's use a simpler approach with multiple update statements
-                if let Some(topic_name) = &req.topic_name {
-                    diesel::update(schema::topic::dsl::topic.find(*topic_id))
-                        .set(schema::topic::columns::topic_name.eq(topic_name))
-                        .execute(conn)
-                        .map_err(|e| {
-                            ApiError::InternalServerError(format!(
-                                "Failed to update topic name: {}",
-                                e
-                            ))
-                        })?;
-                }
-                if let Some(topic_description) = &req.topic_description {
-                    diesel::update(schema::topic::dsl::topic.find(*topic_id))
-                        .set(schema::topic::columns::topic_description.eq(topic_description))
-                        .execute(conn)
-                        .map_err(|e| {
-                            ApiError::InternalServerError(format!(
-                                "Failed to update topic description: {}",
-                                e
-                            ))
-                        })?;
-                }
-                if let Some(topic_max_students) = req.topic_max_students {
-                    diesel::update(schema::topic::dsl::topic.find(*topic_id))
-                        .set(schema::topic::columns::topic_max_students.eq(topic_max_students))
-                        .execute(conn)
-                        .map_err(|e| {
-                            ApiError::InternalServerError(format!(
-                                "Failed to update max students: {}",
-                                e
-                            ))
-                        })?;
-                }
-                if let Some(topic_type) = req.topic_type {
-                    diesel::update(schema::topic::dsl::topic.find(*topic_id))
-                        .set(schema::topic::columns::topic_type.eq(topic_type as i16))
-                        .execute(conn)
-                        .map_err(|e| {
-                            ApiError::InternalServerError(format!(
-                                "Failed to update topic type: {}",
-                                e
-                            ))
-                        })?;
+                if req.topic_review_status.is_some() {
+                    // Teacher can not update review status
+                    return Err(ApiError::BadRequest(str!(
+                        "Teachers cannot update review status"
+                    )));
                 }
 
-                // Always set review status to Pending when teacher updates
-                diesel::update(schema::topic::dsl::topic.find(*topic_id))
-                    .set(
-                        schema::topic::columns::topic_review_status
-                            .eq(TopicReviewStatus::Pending as i16),
-                    )
-                    .execute(conn)
+                let changeset = TopicChangeset {
+                    topic_name: req.topic_name.clone(),
+                    topic_description: req.topic_description.clone(),
+                    topic_max_students: req.topic_max_students,
+                    topic_type: req.topic_type.map(|t| t as i16),
+                    // topic_review_status is not settable by teacher, but will be reset to Pending on any update
+                    topic_review_status: Some(TopicReviewStatus::Pending as i16),
+                };
+
+                diesel::update(&topic)
+                    .set(changeset)
+                    .get_result::<Topic>(conn)
                     .map_err(|e| {
                         ApiError::InternalServerError(format!(
                             "Failed to update review status: {}",
                             e
                         ))
-                    })?;
-
-                Ok::<(), ApiError>(())
-            })?;
-        }
-        AuthInfoUserRole::Office => {
-            // Office can only update review status
-            if req.topic_name.is_some()
-                || req.topic_description.is_some()
-                || req.topic_max_students.is_some()
-                || req.topic_type.is_some()
-            {
-                return Err(ApiError::BadRequest(str!(
-                    "Office can only update review status"
-                )));
+                    })?
             }
-
-            if let Some(topic_review_status) = req.topic_review_status {
-                if topic_review_status == TopicReviewStatus::Pending {
+            AuthInfoUserRole::Office => {
+                // Is an office user!
+                // Office can only update review status
+                if req.topic_name.is_some()
+                    || req.topic_description.is_some()
+                    || req.topic_max_students.is_some()
+                    || req.topic_type.is_some()
+                {
                     return Err(ApiError::BadRequest(str!(
-                        "Cannot explicitly set review status to Pending"
+                        "Office can only update review status"
                     )));
                 }
 
-                diesel::update(schema::topic::dsl::topic.find(*topic_id))
-                    .set(schema::topic::columns::topic_review_status.eq(topic_review_status as i16))
-                    .execute(&mut conn)
-                    .map_err(|e| {
-                        ApiError::InternalServerError(format!(
-                            "Failed to update topic review status: {}",
-                            e
-                        ))
-                    })?;
-            } else {
-                return Err(ApiError::BadRequest(str!(
-                    "Review status must be provided by Office"
-                )));
+                if let Some(topic_review_status) = req.topic_review_status {
+                    if topic_review_status == TopicReviewStatus::Pending {
+                        return Err(ApiError::BadRequest(str!(
+                            "Cannot explicitly set review status to Pending"
+                        )));
+                    }
+
+                    diesel::update(&topic)
+                        .set(
+                            schema::topic::columns::topic_review_status
+                                .eq(topic_review_status as i16),
+                        )
+                        .get_result::<Topic>(conn)
+                        .map_err(|e| {
+                            ApiError::InternalServerError(format!(
+                                "Failed to update topic review status: {}",
+                                e
+                            ))
+                        })?
+                } else {
+                    return Err(ApiError::BadRequest(str!(
+                        "Review status must be provided by Office"
+                    )));
+                }
             }
-        }
-        AuthInfoUserRole::DefenseBoard | AuthInfoUserRole::Student => {
-            // These roles are not allowed to update topics
-            return Err(ApiError::Forbidden);
-        }
-    }
+            AuthInfoUserRole::DefenseBoard | AuthInfoUserRole::Student => {
+                // These roles are not allowed to update topics
+                return Err(ApiError::Forbidden);
+            }
+        };
 
-    let updated_topic = schema::topic::dsl::topic
-        .find(*topic_id)
-        .inner_join(schema::teacher::table)
-        .inner_join(schema::major::table)
-        .first::<(Topic, Teacher, Major)>(&mut conn)
-        .map_err(|e| {
-            ApiError::InternalServerError(format!("Failed to load updated topic: {}", e))
-        })?;
+        let teacher = schema::teacher::dsl::teacher
+            .find(topic.user_id)
+            .first::<Teacher>(conn)
+            .map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to load topic teacher: {}", e))
+            })?;
+        let major = schema::major::dsl::major
+            .find(topic.major_id)
+            .first::<Major>(conn)
+            .map_err(|e| {
+                ApiError::InternalServerError(format!("Failed to load topic major: {}", e))
+            })?;
 
-    let (topic, teacher, major) = updated_topic;
+        let current_student_count: i64 = schema::student::dsl::student
+            .filter(schema::student::columns::topic_id.eq(topic.topic_id))
+            .count()
+            .get_result(conn)
+            .map_err(|_| {
+                ApiError::InternalServerError(str!("Failed to count students for topic"))
+            })?;
 
-    let current_student_count: i64 = schema::student::dsl::student
-        .filter(schema::student::columns::topic_id.eq(topic.topic_id))
-        .count()
-        .get_result(&mut conn)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to count students for topic")))?;
+        let topic_details = TopicDetails {
+            topic_id: topic.topic_id,
+            major_id: topic.major_id,
+            major_name: major.major_name,
+            teacher_id: topic.user_id,
+            teacher_name: teacher.teacher_name,
+            topic_name: topic.topic_name,
+            topic_description: topic.topic_description,
+            topic_max_students: topic.topic_max_students,
+            topic_type: TopicType::try_from(topic.topic_type)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
+            topic_review_status: TopicReviewStatus::try_from(topic.topic_review_status)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid topic review status")))?,
+            current_student_count: current_student_count as i32,
+        };
 
-    // Build response
-    let topic_details = TopicDetails {
-        topic_id: topic.topic_id,
-        major_id: topic.major_id,
-        major_name: major.major_name,
-        teacher_id: topic.user_id,
-        teacher_name: teacher.teacher_name,
-        topic_name: topic.topic_name,
-        topic_description: topic.topic_description,
-        topic_max_students: topic.topic_max_students,
-        topic_type: TopicType::try_from(topic.topic_type)
-            .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
-        topic_review_status: TopicReviewStatus::try_from(topic.topic_review_status)
-            .map_err(|_| ApiError::InternalServerError(str!("Invalid topic review status")))?,
-        current_student_count: current_student_count as i32,
-    };
+        Ok::<_, ApiError>(topic_details)
+    })?;
 
-    Ok(HttpResponse::Ok().json(topic_details))
+    Ok(HttpResponse::Ok().json(result))
 }
 
 #[get("/assignments")]
