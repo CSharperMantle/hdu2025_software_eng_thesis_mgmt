@@ -14,7 +14,7 @@ use std::fmt;
 pub enum UserRole {
     /// 系统管理员
     Admin = 0,
-    /// 教师
+    /// 学生
     Student = 1,
     /// 教师
     Teacher = 2,
