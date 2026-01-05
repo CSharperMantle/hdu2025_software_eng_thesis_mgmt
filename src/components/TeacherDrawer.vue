@@ -4,23 +4,23 @@
       <v-list-subheader>教师服务</v-list-subheader>
       <v-list-item
         link
-        to="/teacher/topics"
         prepend-icon="mdi-book-plus"
         title="新建课题"
+        to="/teacher/topics"
         :variant="part === 0 ? 'tonal' : undefined"
       />
       <v-list-item
         link
-        to="/teacher/assignments"
         prepend-icon="mdi-account-multiple-check"
         title="选题审核"
+        to="/teacher/assignments"
         :variant="part === 1 ? 'tonal' : undefined"
       />
       <v-list-item
         link
-        to="/teacher/progress"
         prepend-icon="mdi-file-document-edit"
         title="进展审核"
+        to="/teacher/progress"
         :variant="part === 2 ? 'tonal' : undefined"
       />
       <InfoDrawer />
