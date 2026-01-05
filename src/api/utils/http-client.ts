@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios'
+import type { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import {
   ApiError,
   AuthenticationError,
@@ -16,10 +17,10 @@ export interface HttpClientConfig {
 export class HttpClient {
   private client: AxiosInstance
 
-  constructor(config: HttpClientConfig) {
+  constructor (config: HttpClientConfig) {
     this.client = axios.create({
       baseURL: config.baseURL,
-      timeout: config.timeout || 30000,
+      timeout: config.timeout || 30_000,
       headers: {
         'Content-Type': 'application/json',
         ...config.headers,
@@ -28,38 +29,6 @@ export class HttpClient {
     })
 
     this.setupInterceptors()
-  }
-
-  private setupInterceptors() {
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error: AxiosError) => {
-        return Promise.reject(this.handleError(error))
-      }
-    )
-  }
-
-  private handleError(error: AxiosError): Error {
-    if (!error.response) {
-      return new ApiError(error.message || 'Network error')
-    }
-
-    const { status, data } = error.response
-    const message = (data as any)?.detail || (data as any)?.message || error.message
-
-    switch (status) {
-      case 401:
-        return new AuthenticationError(message)
-      case 403:
-        return new AuthorizationError(message)
-      case 404:
-        return new NotFoundError(message)
-      case 400:
-      case 422:
-        return new ValidationError(message, data)
-      default:
-        return new ApiError(message, status, data)
-    }
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
@@ -94,8 +63,45 @@ export class HttpClient {
         'Content-Type': 'multipart/form-data',
         ...config?.headers,
       },
-      timeout: config?.timeout || 90000,
+      timeout: config?.timeout || 90_000,
     })
     return response.data
+  }
+
+  private setupInterceptors () {
+    this.client.interceptors.response.use(
+      response => response,
+      (error: AxiosError) => {
+        return Promise.reject(this.handleError(error))
+      },
+    )
+  }
+
+  private handleError (error: AxiosError): Error {
+    if (!error.response) {
+      return new ApiError(error.message || 'Network error')
+    }
+
+    const { status, data } = error.response
+    const message = (data as any)?.detail || (data as any)?.message || error.message
+
+    switch (status) {
+      case 401: {
+        return new AuthenticationError(message)
+      }
+      case 403: {
+        return new AuthorizationError(message)
+      }
+      case 404: {
+        return new NotFoundError(message)
+      }
+      case 400:
+      case 422: {
+        return new ValidationError(message, data)
+      }
+      default: {
+        return new ApiError(message, status, data)
+      }
+    }
   }
 }
