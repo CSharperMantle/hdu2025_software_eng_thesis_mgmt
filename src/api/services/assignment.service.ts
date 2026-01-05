@@ -1,26 +1,26 @@
-import { HttpClient } from '../utils/http-client'
 import type {
-  PaginationParams,
+  AssignmentRecordPatchRequest,
   AssignmentsGetResponse,
   AssignmentsPostRequest,
-  AssignmentRecordPatchRequest,
+  PaginationParams,
 } from '../models'
+import type { HttpClient } from '../utils/http-client'
 
 export class AssignmentService {
-  constructor(private http: HttpClient) {}
+  constructor (private http: HttpClient) {}
 
-  async getAssignments(params?: PaginationParams): Promise<AssignmentsGetResponse> {
+  async getAssignments (params?: PaginationParams): Promise<AssignmentsGetResponse> {
     return this.http.get<AssignmentsGetResponse>('/assignments', { params })
   }
 
-  async createAssignment(data: AssignmentsPostRequest): Promise<void> {
+  async createAssignment (data: AssignmentsPostRequest): Promise<void> {
     await this.http.post('/assignments', data)
   }
 
-  async updateAssignmentStatus(
+  async updateAssignmentStatus (
     studentId: number,
     topicId: number,
-    data: AssignmentRecordPatchRequest
+    data: AssignmentRecordPatchRequest,
   ): Promise<void> {
     await this.http.patch(`/assignments/${studentId}/${topicId}`, data)
   }
