@@ -18,6 +18,7 @@
       />
       <v-list-item
         link
+        to="/teacher/progress"
         prepend-icon="mdi-file-document-edit"
         title="进展审核"
         :variant="part === 2 ? 'tonal' : undefined"
