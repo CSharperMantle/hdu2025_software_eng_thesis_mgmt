@@ -4,12 +4,14 @@
       <v-list-subheader>教师服务</v-list-subheader>
       <v-list-item
         link
+        to="/teacher/topics"
         prepend-icon="mdi-book-plus"
         title="新建课题"
         :variant="part === 0 ? 'tonal' : undefined"
       />
       <v-list-item
         link
+        to="/teacher/assignments"
         prepend-icon="mdi-account-multiple-check"
         title="选题审核"
         :variant="part === 1 ? 'tonal' : undefined"

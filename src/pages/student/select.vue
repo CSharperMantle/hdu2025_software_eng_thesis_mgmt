@@ -2,14 +2,7 @@
   <AppBar />
   <StudentDrawer :part="currentPart" />
 
-  <v-sheet class="w-100 d-flex justify-space-between pa-3 elevation-2 rounded-0">
-    <span>
-      你好, {{ userInfo?.name || userInfo?.username || '用户' }}
-    </span>
-    <span>
-      学号: {{ userInfo?.username || '-' }}
-    </span>
-  </v-sheet>
+  <UserInfoBar :user-info="userInfo" role="student" />
   <div class="d-flex flex-column pa-4">
     <v-card class="w-100">
       <template #title>

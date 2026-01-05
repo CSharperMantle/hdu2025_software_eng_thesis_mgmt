@@ -2,14 +2,7 @@
   <AppBar />
   <TeacherDrawer :part="currentPart" />
 
-  <v-sheet class="w-100 d-flex justify-space-between pa-3 elevation-2 rounded-0">
-    <span>
-      你好, {{ userInfo?.name || userInfo?.username || '用户' }}
-    </span>
-    <span>
-      工号: {{ userInfo?.username || '-' }}
-    </span>
-  </v-sheet>
+  <UserInfoBar :user-info="userInfo" role="teacher" />
 
   <div class="d-flex flex-column pa-4">
     <v-card class="w-100">
@@ -64,13 +57,11 @@
 
           <template #item.actions="{ item }">
             <v-btn
-              color="primary"
+              icon="mdi-pencil"
               size="small"
               variant="text"
               @click="viewTopic(item.topic_id)"
-            >
-              查看
-            </v-btn>
+            />
           </template>
         </v-data-table-server>
       </v-card-text>
