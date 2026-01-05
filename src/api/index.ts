@@ -17,3 +17,7 @@ export { TopicService } from './services/topic.service'
 // Utils
 export { HttpClient } from './utils/http-client'
 export type { HttpClientConfig } from './utils/http-client'
+export { getErrorMessage } from './utils/error-messages'
+
+// Constants
+export * from './constants'
