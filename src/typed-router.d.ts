@@ -23,6 +23,7 @@ declare module 'vue-router/auto-routes' {
     '/student/progress': RouteRecordInfo<'/student/progress', '/student/progress', Record<never, never>, Record<never, never>>,
     '/student/select': RouteRecordInfo<'/student/select', '/student/select', Record<never, never>, Record<never, never>>,
     '/teacher/assignments': RouteRecordInfo<'/teacher/assignments', '/teacher/assignments', Record<never, never>, Record<never, never>>,
+    '/teacher/progress': RouteRecordInfo<'/teacher/progress', '/teacher/progress', Record<never, never>, Record<never, never>>,
     '/teacher/topics': RouteRecordInfo<'/teacher/topics', '/teacher/topics', Record<never, never>, Record<never, never>>,
   }
 
@@ -55,6 +56,10 @@ declare module 'vue-router/auto-routes' {
     }
     'src/pages/teacher/assignments.vue': {
       routes: '/teacher/assignments'
+      views: never
+    }
+    'src/pages/teacher/progress.vue': {
+      routes: '/teacher/progress'
       views: never
     }
     'src/pages/teacher/topics.vue': {

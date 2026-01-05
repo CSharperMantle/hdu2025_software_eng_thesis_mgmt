@@ -5,129 +5,138 @@
   <UserInfoBar :user-info="userInfo" role="student" />
 
   <div class="d-flex flex-column pa-4">
-    <v-card class="w-100">
-      <template #title>
-        <span class="font-weight-black">毕业设计进度管理</span>
-      </template>
-
-      <v-card-text>
-        <v-stepper v-model="currentStep" :items="stepItems" alt-labels>
+    <div class="text-h5 font-weight-black mb-4">毕业设计进度管理</div>
+    <v-stepper :model-value="currentStep" :items="stepItems" alt-labels hide-actions>
           <!-- Step 1: Topic Selection -->
           <template #item.1>
-            <v-card flat>
-              <v-card-title>选题</v-card-title>
-              <v-card-text>
-                <div v-if="assignedTopic">
-                  <div class="text-subtitle-2 text-grey mb-2">已选课题</div>
-                  <div class="text-h6 mb-2">{{ assignedTopic.topic_name }}</div>
-                  <div class="text-body-2 text-grey mb-1">指导教师: {{ assignedTopic.teacher_name }}</div>
-                  <div class="text-body-2 text-grey">分配时间: {{ formatDateTime(assignedTopic.assn_time) }}</div>
-                </div>
-                <div v-else class="text-grey">
-                  您还未选择课题，请前往选题页面选择课题
-                  <v-btn color="primary" class="mt-2" to="/student/select">
-                    前往选题
-                  </v-btn>
-                </div>
-              </v-card-text>
-            </v-card>
+            <div class="pa-4">
+              <div class="text-h6 mb-3">选题</div>
+              <div v-if="assignedTopic">
+                <div class="text-subtitle-2 text-grey mb-2">已选课题</div>
+                <div class="text-h6 mb-2">{{ assignedTopic.topic_name }}</div>
+                <div class="text-body-2 text-grey mb-1">指导教师: {{ assignedTopic.teacher_name }}</div>
+                <div class="text-body-2 text-grey">分配时间: {{ formatDateTime(assignedTopic.assn_time) }}</div>
+              </div>
+              <div v-else class="text-grey">
+                您还未选择课题，请前往选题页面选择课题
+                <v-btn color="primary" class="mt-2" to="/student/select">
+                  前往选题
+                </v-btn>
+              </div>
+            </div>
           </template>
 
           <!-- Step 2: Initial Report -->
           <template #item.2>
-            <v-card flat>
-              <v-card-title>开题报告</v-card-title>
-              <v-card-text>
-                <div v-if="initialReport">
-                  <v-chip :color="getProgressOutcomeColor(initialReport.prog_report_outcome)" class="mb-2">
-                    {{ getProgressOutcomeName(initialReport.prog_report_outcome) }}
-                  </v-chip>
-                  <div v-if="initialReport.prog_report_grade" class="mb-2">
-                    <span class="text-subtitle-2 text-grey">成绩: </span>
-                    <span class="text-h6">{{ initialReport.prog_report_grade }}</span>
-                  </div>
-                  <div v-if="initialReport.prog_report_comment" class="mb-2">
-                    <div class="text-subtitle-2 text-grey">教师意见:</div>
-                    <div class="text-body-2">{{ initialReport.prog_report_comment }}</div>
-                  </div>
-                  <div class="text-caption text-grey">提交时间: {{ formatDateTime(initialReport.prog_report_time) }}</div>
+            <div class="pa-4">
+              <div class="text-h6 mb-3">开题报告</div>
+              <div v-if="initialReport">
+                <v-chip :color="getProgressOutcomeColor(initialReport.prog_report_outcome)" class="mb-2">
+                  {{ getProgressOutcomeName(initialReport.prog_report_outcome) }}
+                </v-chip>
+                <div v-if="initialReport.prog_report_grade" class="mb-2">
+                  <span class="text-subtitle-2 text-grey">成绩: </span>
+                  <span class="text-h6">{{ initialReport.prog_report_grade }}</span>
                 </div>
-                <div v-else>
-                  <v-btn color="primary" @click="openSubmitDialog(0)">
-                    提交开题报告
+                <div v-if="initialReport.prog_report_comment" class="mb-2">
+                  <div class="text-subtitle-2 text-grey">教师意见:</div>
+                  <div class="text-body-2">{{ initialReport.prog_report_comment }}</div>
+                </div>
+                <div class="text-caption text-grey mb-2">提交时间: {{ formatDateTime(initialReport.prog_report_time) }}</div>
+                <div class="d-flex justify-space-between">
+                  <v-btn v-if="initialReport.prog_report_attachment" color="info" @click="downloadAttachment(initialReport.prog_report_attachment, '开题报告')">
+                    <v-icon start>mdi-download</v-icon>
+                    下载附件
+                  </v-btn>
+                  <v-spacer v-else />
+                  <v-btn v-if="initialReport.prog_report_outcome === 2" color="primary" @click="openSubmitDialog(0)">
+                    重新提交
                   </v-btn>
                 </div>
-              </v-card-text>
-            </v-card>
+              </div>
+              <div v-else>
+                <v-btn color="primary" @click="openSubmitDialog(0)">
+                  提交开题报告
+                </v-btn>
+              </div>
+            </div>
           </template>
 
           <!-- Step 3: Mid-term Report -->
           <template #item.3>
-            <v-card flat>
-              <v-card-title>中期检查</v-card-title>
-              <v-card-text>
-                <div v-if="midtermReport">
-                  <v-chip :color="getProgressOutcomeColor(midtermReport.prog_report_outcome)" class="mb-2">
-                    {{ getProgressOutcomeName(midtermReport.prog_report_outcome) }}
-                  </v-chip>
-                  <div v-if="midtermReport.prog_report_grade" class="mb-2">
-                    <span class="text-subtitle-2 text-grey">成绩: </span>
-                    <span class="text-h6">{{ midtermReport.prog_report_grade }}</span>
-                  </div>
-                  <div v-if="midtermReport.prog_report_comment" class="mb-2">
-                    <div class="text-subtitle-2 text-grey">教师意见:</div>
-                    <div class="text-body-2">{{ midtermReport.prog_report_comment }}</div>
-                  </div>
-                  <div class="text-caption text-grey">提交时间: {{ formatDateTime(midtermReport.prog_report_time) }}</div>
+            <div class="pa-4">
+              <div class="text-h6 mb-3">中期检查</div>
+              <div v-if="midtermReport">
+                <v-chip :color="getProgressOutcomeColor(midtermReport.prog_report_outcome)" class="mb-2">
+                  {{ getProgressOutcomeName(midtermReport.prog_report_outcome) }}
+                </v-chip>
+                <div v-if="midtermReport.prog_report_grade" class="mb-2">
+                  <span class="text-subtitle-2 text-grey">成绩: </span>
+                  <span class="text-h6">{{ midtermReport.prog_report_grade }}</span>
                 </div>
-                <div v-else>
-                  <v-btn color="primary" @click="openSubmitDialog(1)" :disabled="!initialReport || initialReport.prog_report_outcome !== 1">
-                    提交中期检查
+                <div v-if="midtermReport.prog_report_comment" class="mb-2">
+                  <div class="text-subtitle-2 text-grey">教师意见:</div>
+                  <div class="text-body-2">{{ midtermReport.prog_report_comment }}</div>
+                </div>
+                <div class="text-caption text-grey mb-2">提交时间: {{ formatDateTime(midtermReport.prog_report_time) }}</div>
+                <div class="d-flex justify-space-between">
+                  <v-btn v-if="midtermReport.prog_report_attachment" color="info" @click="downloadAttachment(midtermReport.prog_report_attachment, '中期检查')">
+                    <v-icon start>mdi-download</v-icon>
+                    下载附件
                   </v-btn>
-                  <div v-if="!initialReport || initialReport.prog_report_outcome !== 1" class="text-caption text-grey mt-2">
-                    需要先通过开题报告
-                  </div>
+                  <v-spacer v-else />
+                  <v-btn v-if="midtermReport.prog_report_outcome === 2" color="primary" @click="openSubmitDialog(1)">
+                    重新提交
+                  </v-btn>
                 </div>
-              </v-card-text>
-            </v-card>
+              </div>
+              <div v-else>
+                <v-btn color="primary" @click="openSubmitDialog(1)" :disabled="!initialReport || initialReport.prog_report_outcome !== 1">
+                  提交中期检查
+                </v-btn>
+                <div v-if="!initialReport || initialReport.prog_report_outcome !== 1" class="text-caption text-grey mt-2">
+                  需要先通过开题报告
+                </div>
+              </div>
+            </div>
           </template>
 
           <!-- Step 4: Final Defense -->
           <template #item.4>
-            <v-card flat>
-              <v-card-title>答辩</v-card-title>
-              <v-card-text>
-                <div v-if="finalDefense">
-                  <v-chip v-if="finalDefense.final_def_outcome !== null" :color="finalDefense.final_def_outcome ? 'success' : 'error'" class="mb-2">
-                    {{ finalDefense.final_def_outcome ? '通过' : '未通过' }}
-                  </v-chip>
-                  <v-chip v-else color="warning" class="mb-2">
-                    待答辩
-                  </v-chip>
-                  <div v-if="finalDefense.final_def_grade" class="mb-2">
-                    <span class="text-subtitle-2 text-grey">成绩: </span>
-                    <span class="text-h6">{{ finalDefense.final_def_grade }}</span>
-                  </div>
-                  <div v-if="finalDefense.final_def_comment" class="mb-2">
-                    <div class="text-subtitle-2 text-grey">答辩组意见:</div>
-                    <div class="text-body-2">{{ finalDefense.final_def_comment }}</div>
-                  </div>
-                  <div class="text-caption text-grey">提交时间: {{ formatDateTime(finalDefense.final_def_time) }}</div>
+            <div class="pa-4">
+              <div class="text-h6 mb-3">答辩</div>
+              <div v-if="finalDefense">
+                <v-chip v-if="finalDefense.final_def_outcome !== null" :color="finalDefense.final_def_outcome ? 'success' : 'error'" class="mb-2">
+                  {{ finalDefense.final_def_outcome ? '通过' : '未通过' }}
+                </v-chip>
+                <v-chip v-else color="warning" class="mb-2">
+                  待答辩
+                </v-chip>
+                <div v-if="finalDefense.final_def_grade" class="mb-2">
+                  <span class="text-subtitle-2 text-grey">成绩: </span>
+                  <span class="text-h6">{{ finalDefense.final_def_grade }}</span>
                 </div>
-                <div v-else>
-                  <v-btn color="primary" @click="openFinalDefenseDialog" :disabled="!midtermReport || midtermReport.prog_report_outcome !== 1">
-                    提交答辩申请
-                  </v-btn>
-                  <div v-if="!midtermReport || midtermReport.prog_report_outcome !== 1" class="text-caption text-grey mt-2">
-                    需要先通过中期检查
-                  </div>
+                <div v-if="finalDefense.final_def_comment" class="mb-2">
+                  <div class="text-subtitle-2 text-grey">答辩组意见:</div>
+                  <div class="text-body-2">{{ finalDefense.final_def_comment }}</div>
                 </div>
-              </v-card-text>
-            </v-card>
+                <div class="text-caption text-grey mb-2">提交时间: {{ formatDateTime(finalDefense.final_def_time) }}</div>
+                <v-btn v-if="finalDefense.final_def_attachment" color="info" @click="downloadAttachment(finalDefense.final_def_attachment, '答辩材料')">
+                  <v-icon start>mdi-download</v-icon>
+                  下载附件
+                </v-btn>
+              </div>
+              <div v-else>
+                <v-btn color="primary" @click="openFinalDefenseDialog" :disabled="!midtermReport || midtermReport.prog_report_outcome !== 1">
+                  提交答辩申请
+                </v-btn>
+                <div v-if="!midtermReport || midtermReport.prog_report_outcome !== 1" class="text-caption text-grey mt-2">
+                  需要先通过中期检查
+                </div>
+              </div>
+            </div>
           </template>
-        </v-stepper>
-      </v-card-text>
-    </v-card>
+    </v-stepper>
   </div>
 
   <!-- Submit Progress Report Dialog -->
@@ -146,7 +155,7 @@
             variant="outlined"
             accept=".pdf,.doc,.docx,.zip"
             prepend-icon="mdi-attachment"
-            :rules="[v => !!v && v.length > 0 || '请上传附件']"
+            :rules="[v => !!v || '请上传附件']"
             @change="handleAttachmentChange"
           />
         </v-form>
@@ -180,7 +189,7 @@
             variant="outlined"
             accept=".pdf,.doc,.docx,.zip"
             prepend-icon="mdi-attachment"
-            :rules="[v => !!v && v.length > 0 || '请上传答辩材料']"
+            :rules="[v => !!v || '请上传答辩材料']"
             @change="handleDefenseAttachmentChange"
           />
         </v-form>
@@ -223,9 +232,9 @@ const finalDefenseDialogVisible = ref(false)
 const submitFormRef = ref<any>(null)
 const finalDefenseFormRef = ref<any>(null)
 const submitType = ref<0 | 1>(0) // 0: initial, 1: midterm
-const attachmentFile = ref<File[]>([])
+const attachmentFile = ref<File | null>(null)
 const attachmentData = ref<string>('')
-const defenseAttachmentFile = ref<File[]>([])
+const defenseAttachmentFile = ref<File | null>(null)
 const defenseAttachmentData = ref<string>('')
 
 const snackbar = ref({
@@ -234,21 +243,27 @@ const snackbar = ref({
 	color: 'success',
 })
 
-const stepItems = [
-	{ title: '选题', value: 1 },
-	{ title: '开题', value: 2 },
-	{ title: '中期', value: 3 },
-	{ title: '答辩', value: 4 },
-]
+const stepItems = computed(() => [
+	{ title: '选题', value: 1, props: { editable: true } },
+	{ title: '开题', value: 2, props: { editable: currentStep.value >= 2 } },
+	{ title: '中期', value: 3, props: { editable: currentStep.value >= 3 } },
+	{ title: '答辩', value: 4, props: { editable: currentStep.value >= 4 } },
+])
 
 const apiClient = createApiClient(API_BASE_URL)
 
 const initialReport = computed(() => {
-	return progressReports.value.find(r => r.prog_report_type === 0)
+	const reports = progressReports.value.filter(r => r.prog_report_type === 0)
+	if (reports.length === 0) return undefined
+	// Return the most recent report (latest submission)
+	return reports.sort((a, b) => new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime())[0]
 })
 
 const midtermReport = computed(() => {
-	return progressReports.value.find(r => r.prog_report_type === 1)
+	const reports = progressReports.value.filter(r => r.prog_report_type === 1)
+	if (reports.length === 0) return undefined
+	// Return the most recent report (latest submission)
+	return reports.sort((a, b) => new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime())[0]
 })
 
 const currentStep = computed(() => {
@@ -264,11 +279,27 @@ const currentStep = computed(() => {
 async function fetchUserInfo() {
 	try {
 		userInfo.value = await apiClient.auth.getCurrentUser()
-		// Check if student has assigned topic
-		// This would require a student info endpoint, for now we'll skip
 	}
 	catch (error) {
 		console.error('Failed to fetch user info:', error)
+	}
+}
+
+async function loadAssignedTopic() {
+	try {
+		// Get student's assignments to find approved topic
+		const response = await apiClient.assignments.getAssignments()
+		const approvedAssignment = response.assignments.find(a => a.status === 1)
+		if (approvedAssignment) {
+			assignedTopic.value = {
+				topic_name: approvedAssignment.topic_name,
+				teacher_name: '', // Not available in assignment response
+				assn_time: approvedAssignment.request_time,
+			}
+		}
+	}
+	catch (error: any) {
+		console.error('Failed to load assigned topic:', error)
 	}
 }
 
@@ -318,20 +349,22 @@ function getProgressOutcomeColor(outcome: number): string {
 
 function openSubmitDialog(type: 0 | 1) {
 	submitType.value = type
-	attachmentFile.value = []
+	attachmentFile.value = null
 	attachmentData.value = ''
 	submitDialogVisible.value = true
 }
 
 function openFinalDefenseDialog() {
-	defenseAttachmentFile.value = []
+	defenseAttachmentFile.value = null
 	defenseAttachmentData.value = ''
 	finalDefenseDialogVisible.value = true
 }
 
 function handleAttachmentChange() {
-	if (attachmentFile.value && attachmentFile.value.length > 0) {
-		const file = attachmentFile.value[0]
+  console.log(attachmentFile.value);
+	if (attachmentFile.value !== null) {
+	console.log(attachmentFile.value);
+		const file = attachmentFile.value
 		const reader = new FileReader()
 		reader.onload = (e) => {
 			attachmentData.value = e.target?.result as string
@@ -341,8 +374,8 @@ function handleAttachmentChange() {
 }
 
 function handleDefenseAttachmentChange() {
-	if (defenseAttachmentFile.value && defenseAttachmentFile.value.length > 0) {
-		const file = defenseAttachmentFile.value[0]
+	if (defenseAttachmentFile.value !== null) {
+		const file = defenseAttachmentFile.value
 		const reader = new FileReader()
 		reader.onload = (e) => {
 			defenseAttachmentData.value = e.target?.result as string
@@ -352,9 +385,9 @@ function handleDefenseAttachmentChange() {
 }
 
 async function submitProgressReport() {
-	const { valid } = await submitFormRef.value.validate()
-	if (!valid || !attachmentData.value)
-		return
+//	const { valid } = await submitFormRef.value.validate()
+//	if (!valid || !attachmentData.value)
+//		return
 
 	try {
 		await apiClient.progressReports.createProgressReport({
@@ -405,8 +438,29 @@ async function submitFinalDefense() {
 	}
 }
 
+function downloadAttachment(attachment: string, fileName: string) {
+	try {
+		// Create a temporary link element
+		const link = document.createElement('a')
+		link.href = attachment
+		link.download = fileName
+		document.body.appendChild(link)
+		link.click()
+		document.body.removeChild(link)
+	}
+	catch (error) {
+		console.error('Failed to download attachment:', error)
+		snackbar.value = {
+			show: true,
+			message: '下载失败',
+			color: 'error',
+		}
+	}
+}
+
 onMounted(() => {
 	fetchUserInfo()
+	loadAssignedTopic()
 	loadProgressReports()
 	loadFinalDefense()
 })
