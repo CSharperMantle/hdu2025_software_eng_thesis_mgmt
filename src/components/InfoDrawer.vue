@@ -19,20 +19,20 @@
           <v-text-field
             v-model="userInfoForm.name"
             label="姓名"
-            variant="outlined"
             :rules="[v => !!v || '请输入姓名']"
+            variant="outlined"
           />
 
           <v-file-input
             v-model="avatarFile"
-            label="头像"
-            variant="outlined"
             accept="image/*"
+            label="头像"
             prepend-icon="mdi-camera"
+            variant="outlined"
             @change="handleAvatarChange"
           />
 
-          <v-avatar v-if="avatarPreview" size="100" class="mb-4">
+          <v-avatar v-if="avatarPreview" class="mb-4" size="100">
             <v-img :src="avatarPreview" />
           </v-avatar>
         </v-form>
@@ -63,20 +63,20 @@
           <v-text-field
             v-model="passwordForm.password"
             label="新密码"
+            :rules="[v => !!v || '请输入新密码', v => v.length >= 5 || '密码至少 5 位']"
             type="password"
             variant="outlined"
-            :rules="[v => !!v || '请输入新密码', v => v.length >= 5 || '密码至少 5 位']"
           />
 
           <v-text-field
             v-model="passwordForm.confirmPassword"
             label="确认密码"
-            type="password"
-            variant="outlined"
             :rules="[
               v => !!v || '请确认密码',
               v => v === passwordForm.password || '两次密码不一致',
             ]"
+            type="password"
+            variant="outlined"
           />
         </v-form>
       </v-card-text>
@@ -99,144 +99,140 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { createApiClient, getErrorMessage } from '@/api'
-import { API_BASE_URL } from '@/config'
+  import { onMounted, ref } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { createApiClient, getErrorMessage } from '@/api'
+  import { API_BASE_URL } from '@/config'
 
-const router = useRouter()
-const apiClient = createApiClient(API_BASE_URL)
+  const router = useRouter()
+  const apiClient = createApiClient(API_BASE_URL)
 
-const userInfoDialogVisible = ref(false)
-const passwordDialogVisible = ref(false)
-const userInfoFormRef = ref<any>(null)
-const passwordFormRef = ref<any>(null)
+  const userInfoDialogVisible = ref(false)
+  const passwordDialogVisible = ref(false)
+  const userInfoFormRef = ref<any>(null)
+  const passwordFormRef = ref<any>(null)
 
-const userInfoForm = ref({
-	name: '',
-})
+  const userInfoForm = ref({
+    name: '',
+  })
 
-const passwordForm = ref({
-	password: '',
-	confirmPassword: '',
-})
+  const passwordForm = ref({
+    password: '',
+    confirmPassword: '',
+  })
 
-const avatarFile = ref<File | null>(null)
-const avatarPreview = ref<string | null>(null)
+  const avatarFile = ref<File | null>(null)
+  const avatarPreview = ref<string | null>(null)
 
-const snackbar = ref({
-	show: false,
-	message: '',
-	color: 'success',
-})
+  const snackbar = ref({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-async function loadUserInfo() {
-	try {
-		const userInfo = await apiClient.auth.getCurrentUser()
-		userInfoForm.value.name = userInfo.name || ''
-		avatarPreview.value = userInfo.avatar || null
-	}
-	catch (error) {
-		console.error('Failed to load user info:', error)
-	}
-}
+  async function loadUserInfo () {
+    try {
+      const userInfo = await apiClient.auth.getCurrentUser()
+      userInfoForm.value.name = userInfo.name || ''
+      avatarPreview.value = userInfo.avatar || null
+    } catch (error) {
+      console.error('Failed to load user info:', error)
+    }
+  }
 
-function openUserInfoDialog() {
-	loadUserInfo()
-	userInfoDialogVisible.value = true
-}
+  function openUserInfoDialog () {
+    loadUserInfo()
+    userInfoDialogVisible.value = true
+  }
 
-function openPasswordDialog() {
-	passwordForm.value = {
-		password: '',
-		confirmPassword: '',
-	}
-	passwordDialogVisible.value = true
-}
+  function openPasswordDialog () {
+    passwordForm.value = {
+      password: '',
+      confirmPassword: '',
+    }
+    passwordDialogVisible.value = true
+  }
 
-function handleAvatarChange() {
-  console.log("avatar change");
-  console.log(avatarFile);
-	if (avatarFile !== null) {
-	console.log("avatar change valid");
-		const file = avatarFile.value
-		const reader = new FileReader()
-		reader.onload = (e) => {
-      console.log(e);
-			avatarPreview.value = e.target?.result as string
-		}
-		reader.readAsDataURL(file)
-	}
-}
+  function handleAvatarChange () {
+    console.log('avatar change')
+    console.log(avatarFile)
+    if (avatarFile.value !== null) {
+      console.log('avatar change valid')
+      const file = avatarFile.value
+      const reader = new FileReader()
+      reader.addEventListener('load', e => {
+        console.log(e)
+        avatarPreview.value = e.target?.result as string
+      })
+      reader.readAsDataURL(file)
+    }
+  }
 
-async function saveUserInfo() {
-	const { valid } = await userInfoFormRef.value.validate()
-	if (!valid)
-		return
+  async function saveUserInfo () {
+    const { valid } = await userInfoFormRef.value.validate()
+    if (!valid)
+      return
 
-	try {
-		await apiClient.auth.updateCurrentUser({
-			name: userInfoForm.value.name,
-			avatar: avatarPreview.value || undefined,
-		})
-		snackbar.value = {
-			show: true,
-			message: '账户信息更新成功',
-			color: 'success',
-		}
-		userInfoDialogVisible.value = false
-		// Reload page to refresh avatar in UserInfoBar
-		window.location.reload()
-	}
-	catch (error: any) {
-		console.error('Failed to update user info:', error)
-		snackbar.value = {
-			show: true,
-			message: getErrorMessage('user', error.statusCode),
-			color: 'error',
-		}
-	}
-}
+    try {
+      await apiClient.auth.updateCurrentUser({
+        name: userInfoForm.value.name,
+        avatar: avatarPreview.value || undefined,
+      })
+      snackbar.value = {
+        show: true,
+        message: '账户信息更新成功',
+        color: 'success',
+      }
+      userInfoDialogVisible.value = false
+      // Reload page to refresh avatar in UserInfoBar
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Failed to update user info:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('user', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
 
-async function savePassword() {
-	const { valid } = await passwordFormRef.value.validate()
-	if (!valid)
-		return
+  async function savePassword () {
+    const { valid } = await passwordFormRef.value.validate()
+    if (!valid)
+      return
 
-	try {
-		await apiClient.auth.updateCurrentUser({
-			password: passwordForm.value.password,
-		})
-		snackbar.value = {
-			show: true,
-			message: '密码修改成功',
-			color: 'success',
-		}
-		passwordDialogVisible.value = false
-	}
-	catch (error: any) {
-		console.error('Failed to update password:', error)
-		snackbar.value = {
-			show: true,
-			message: getErrorMessage('user', error.statusCode),
-			color: 'error',
-		}
-	}
-}
+    try {
+      await apiClient.auth.updateCurrentUser({
+        password: passwordForm.value.password,
+      })
+      snackbar.value = {
+        show: true,
+        message: '密码修改成功',
+        color: 'success',
+      }
+      passwordDialogVisible.value = false
+    } catch (error: any) {
+      console.error('Failed to update password:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('user', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
 
-async function handleLogout() {
-	try {
-		await apiClient.auth.logout()
-		router.push('/')
-	}
-	catch (error) {
-		console.error('Logout failed:', error)
-		// Even if logout API fails, redirect to login page
-		router.push('/')
-	}
-}
+  async function handleLogout () {
+    try {
+      await apiClient.auth.logout()
+      router.push('/')
+    } catch (error) {
+      console.error('Logout failed:', error)
+      // Even if logout API fails, redirect to login page
+      router.push('/')
+    }
+  }
 
-onMounted(() => {
-	loadUserInfo()
-})
+  onMounted(() => {
+    loadUserInfo()
+  })
 </script>
