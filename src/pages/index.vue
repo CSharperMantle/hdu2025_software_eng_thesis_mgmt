@@ -91,7 +91,10 @@ async function submit() {
 		else if (userInfo.role === 'teacher') {
 			router.push('/teacher/topics')
 		}
-		// TODO: Add redirects for other roles (admin, office, defense_board)
+		else if (userInfo.role === 'office') {
+			router.push('/office/topics')
+		}
+		// TODO: Add redirects for other roles (admin, defense_board)
 	}
 	catch (error: any) {
 		console.error('Login failed:', error)
