@@ -19,15 +19,88 @@
       </v-card-text>
     </v-card>
   </div>
+
+  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+    {{ snackbar.message }}
+  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
-  import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { createApiClient, getErrorMessage } from '@/api'
+import { API_BASE_URL } from '@/config'
 
-  const userName = ref('')
-  const passWord = ref('')
+const userName = ref('')
+const passWord = ref('')
 
-  function submit () {
-    console.log('hello')
-  }
+const snackbar = ref({
+	show: false,
+	message: '',
+	color: 'success',
+})
+
+const apiClient = createApiClient(API_BASE_URL)
+const router = useRouter()
+
+async function checkAndLogout() {
+	try {
+		// Try to get current user info to check if already logged in
+		await apiClient.auth.getCurrentUser()
+
+		// If we reach here, user is already logged in, so logout
+		await apiClient.auth.logout()
+
+		snackbar.value = {
+			show: true,
+			message: '检测到已登录，已自动退出',
+			color: 'info',
+		}
+	}
+	catch (error) {
+		// Not logged in, continue to login page
+		console.log('Not logged in yet')
+	}
+}
+
+onMounted(() => {
+	checkAndLogout()
+})
+
+async function submit() {
+	try {
+		await apiClient.auth.login({
+			username: userName.value,
+			password: passWord.value,
+		})
+
+		// Get user info to determine role
+		const userInfo = await apiClient.auth.getCurrentUser()
+		console.log('Login successful, user role:', userInfo.role)
+
+		snackbar.value = {
+			show: true,
+			message: '登录成功!',
+			color: 'success',
+		}
+
+		// Redirect to appropriate page based on userInfo.role
+		if (userInfo.role === 'student') {
+			router.push('/student/select')
+		}
+		else if (userInfo.role === 'teacher') {
+			router.push('/teacher/topics')
+		}
+		// TODO: Add redirects for other roles (admin, office, defense_board)
+	}
+	catch (error: any) {
+		console.error('Login failed:', error)
+
+		snackbar.value = {
+			show: true,
+			message: getErrorMessage('login', error.statusCode),
+			color: 'error',
+		}
+	}
+}
 </script>
