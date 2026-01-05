@@ -327,7 +327,7 @@
     }
   }
 
-  function groupReports () {
+  async function groupReports () {
     const grouped = new Map<number, GroupedReport>()
 
     // Group progress reports - keep only the most recent report of each type per student
@@ -367,7 +367,7 @@
       }
     }
 
-    // Add final defenses
+    // Add final defenses and update topic names
     for (const defense of finalDefenses.value) {
       if (!grouped.has(defense.student_id)) {
         grouped.set(defense.student_id, {
@@ -380,6 +380,32 @@
       const group = grouped.get(defense.student_id)!
       group.topic_name = defense.topic_name
       group.defense = defense
+    }
+
+    // Fetch topic names for students without final defense
+    const topicIds = new Set<number>()
+    for (const report of grouped.values()) {
+      if (!report.topic_name && report.topic_id) {
+        topicIds.add(report.topic_id)
+      }
+    }
+
+    // Fetch topic details for missing topic names
+    const topicMap = new Map<number, string>()
+    for (const topicId of topicIds) {
+      try {
+        const topic = await apiClient.topics.getTopicById(topicId)
+        topicMap.set(topicId, topic.topic_name)
+      } catch (error) {
+        console.error(`Failed to fetch topic ${topicId}:`, error)
+      }
+    }
+
+    // Update topic names
+    for (const report of grouped.values()) {
+      if (!report.topic_name && topicMap.has(report.topic_id)) {
+        report.topic_name = topicMap.get(report.topic_id)!
+      }
     }
 
     groupedReports.value = Array.from(grouped.values())
@@ -482,7 +508,7 @@
       reviewDialogVisible.value = false
       // Reload data
       await loadProgressReports()
-      groupReports()
+      await groupReports()
     } catch (error: any) {
       console.error('Failed to submit review:', error)
       snackbar.value = {
@@ -516,6 +542,6 @@
     fetchUserInfo()
     await loadProgressReports()
     await loadFinalDefenses()
-    groupReports()
+    await groupReports()
   })
 </script>
