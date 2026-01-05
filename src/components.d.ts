@@ -14,6 +14,7 @@ declare module 'vue' {
     AppBar: typeof import('./components/AppBar.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     InfoDrawer: typeof import('./components/InfoDrawer.vue')['default']
+    OfficeDrawer: typeof import('./components/OfficeDrawer.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StudentDrawer: typeof import('./components/StudentDrawer.vue')['default']
