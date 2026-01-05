@@ -1,0 +1,1236 @@
+openapi: "3.1.1"
+
+info:
+  title: 毕业设计管理系统后端 API
+  version: "0.1"
+
+servers:
+  - url: http://localhost:8080/api
+
+tags:
+  - name: sys
+    description: 系统管理相关接口
+  - name: user
+    description: 用户相关接口
+  - name: topic
+    description: 课题管理相关接口
+  - name: assignment
+    description: 选题管理相关接口
+  - name: progress
+    description: 开题、中期、结项进展管理相关接口
+
+paths:
+  /ping:
+    get:
+      summary: 检测服务器状态
+      tags:
+        - sys
+      responses:
+        "200":
+          description: 服务器正常在线
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/PingResponse"
+
+  # Authentication APIs
+  /login:
+    post:
+      tags:
+        - user
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 认证失败
+
+  /logout:
+    post:
+      tags:
+        - user
+      summary: 注销
+      responses:
+        "200":
+          description: 注销成功
+        "401":
+          description: 未登录
+
+  /user:
+    get:
+      tags:
+        - user
+      summary: 获取登录用户信息
+      responses:
+        "200":
+          description: 当前登录用户信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGetResponse"
+        "401":
+          description: 未登录
+    patch:
+      tags:
+        - user
+      summary: 更新登录用户信息
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPatchRequest"
+      responses:
+        "200":
+          description: 用户信息更新成功
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+    post:
+      tags:
+        - user
+      summary: 创建新用户
+      description: |-
+        系统管理员有权创建新用户。
+
+        ## 有访问权角色
+
+        * `admin`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPostRequest"
+      responses:
+        "201":
+          description: 用户创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGetResponse"
+        "409":
+          description: 用户创建失败，同名用户已存在
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topics:
+    get:
+      tags:
+        - topic
+      summary: 获取可见课题列表
+      description: |-
+        根据用户身份返回不同的课题列表：
+
+        * `student`：返回所属专业所有已通过审核的课题
+
+        * `teacher`：返回自己创建的所有课题
+
+        * `office`：返回所有课题
+
+        所有符合条件的记录按页分组，返回 `[(page-1)*page_size, page_size[` 范围内的记录。
+
+        ## 有访问权角色
+
+        * `student`
+
+        * `teacher`
+
+        * `office`
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 课题列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicsGetResponse"
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+    post:
+      tags:
+        - topic
+      summary: 创建新课题
+      description: |
+        由教师创建新课题。
+
+        创建后初始状态为“待审核”。
+
+        ## 有访问权角色
+
+        * `teacher`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopicsPostRequest"
+      responses:
+        "201":
+          description: 课题创建成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicCreateResponse"
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topics/search:
+    get:
+      tags:
+        - topic
+      summary: 检索课题
+      description: |
+        根据条件检索课题，支持模糊查询。
+
+        * `student`：检索所属专业所有已通过审核的课题
+
+        * `teacher`：检索自己创建的所有课题
+
+        * `office`：检索所有课题
+
+        所有符合条件的记录按页分组，返回 `[(page-1)*page_size, page_size[` 范围内的记录。
+
+        ## 有访问权角色
+
+        * `student`
+
+        * `teacher`
+
+        * `office`
+      parameters:
+        - name: keyword
+          in: query
+          description: 搜索关键词（课题名称或描述）
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 检索结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicsGetResponse"
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /topics/{topic_id}:
+    get:
+      tags:
+        - topic
+      summary: 按序号获取课题详情
+      description: |-
+        根据用户身份获取指定课题的详细信息：
+
+        * `student`：获取所属专业所有已通过审核的课题
+
+        * `teacher`：获取自己创建的所有课题
+
+        * `office`：获取所有课题
+
+        ## 有访问权角色
+
+        * `student`
+
+        * `teacher`
+
+        * `office`
+      parameters:
+        - name: topic_id
+          description: 课题序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 课题详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicDetails"
+        "404":
+          description: 未找到指定课题
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+    patch:
+      tags:
+        - topic
+      summary: 按序号更新课题信息
+      description: |-
+        根据用户身份更新课题信息的不同字段：
+
+        * `teacher`：更新自己创建的课题信息，更新后的课题审核状态变为“待审核”；
+
+        * `office`：修改教师创建的课题审核状态；
+
+        ## 有访问权角色
+
+        * `teacher`
+
+        * `office`
+      parameters:
+        - name: topic_id
+          description: 课题序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/TopicsPostTeacherRequest"
+                - $ref: "#/components/schemas/TopicsPostOfficeRequest"
+                - $ref: "#/components/schemas/TopicsPostAdminRequest"
+      responses:
+        "200":
+          description: 课题更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicDetails"
+        "400":
+          description: 请求体格式错误
+        "404":
+          description: 未找到指定课题
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /assignments:
+    get:
+      tags:
+        - assignment
+      summary: 获取可见选题列表
+      description: |-
+        根据用户身份获取选题申请列表：
+
+        * `student`：返回自己的选题申请
+
+        * `teacher`：返回自己课题的所有选题申请
+
+        所有符合条件的记录按页分组，返回 `[(page-1)*page_size, page_size[` 范围内的记录。
+
+        ## 有访问权角色
+
+        * `student`
+
+        * `teacher`
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 选题列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignmentsGetResponse"
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+    post:
+      tags:
+        - assignment
+      summary: 申请选题
+      description: |-
+        每名学生每项课题最多仅能有一条待审核申请记录，但可以同时申请多个不同课题。申请被拒绝后可重新申请。
+
+        ## 有访问权角色
+
+        * `student`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignmentsPostRequest"
+      responses:
+        "201":
+          description: 选题申请成功
+        "409":
+          description: 选题申请失败，课题已满或已存在申请记录
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /assignments/{student_id}/{topic_id}:
+    patch:
+      tags:
+        - assignment
+      summary: 更新选题申请状态
+      description: |-
+        教师审核选题申请。批准申请，更新 `Student.topic_id` 并删除申请记录，向学生分配该课题。拒绝申请，删除申请记录。
+
+        TODO: 考虑允许多条拒绝记录，保留审核历史？
+
+        ## 有访问权角色
+
+        * `teacher`
+      parameters:
+        - name: student_id
+          description: 学生序号
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: topic_id
+          description: 课题序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignmentRecordPatchRequest"
+      responses:
+        "200":
+          description: 选题申请状态更新成功
+        "409":
+          description: 选题申请状态更新失败，学生已有课题或名额已满
+        "404":
+          description: 未找到指定选题申请或学生
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /progress_reports:
+    get:
+      tags:
+        - progress
+      summary: 获取开题、中期进展
+      description: |
+        根据用户身份获取开题报告或中期检查进度列表：
+
+        * `student`：返回自己的所有进度报告
+
+        * `teacher`：返回指导学生的所有进度报告
+
+        ## 有访问权角色
+
+        * `student`
+
+        * `teacher`
+      responses:
+        "200":
+          description: 进展内容列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressReportsGetResponse"
+        "404":
+          description: 无当前进展
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+    post:
+      tags:
+        - progress
+      summary: 创建新开题、中期进展
+      description: |
+        学生用户身份更新进度报告信息。默认状态设为“无结论”。
+
+        每名学生每种进展记录仅能存在一条通过、一条待审核，但是可以有多条被打回的记录。
+
+        ## 有访问权角色
+
+        * `student`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressReportsPostRequest"
+      responses:
+        "200":
+          description: 进展创建成功
+        "409":
+          description: 进展更新失败，状态存在冲突
+        "404":
+          description: 未找到指定进展
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /progress_reports/{report_id}:
+    patch:
+      tags:
+        - progress
+      summary: 更新开题、中期进展
+      description: |
+        教师审核进度报告信息并填写成绩和意见。
+
+        每名学生每种进展记录仅能存在一条通过、一条待审核，但是可以有多条被打回的记录。
+
+        ## 有访问权角色
+
+        * `teacher`
+      parameters:
+        - name: report_id
+          description: 进展序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressReportRecordPatchRequest"
+      responses:
+        "200":
+          description: 进展更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressReportDetailResponse"
+        "409":
+          description: 进展更新失败，状态存在冲突
+        "404":
+          description: 未找到指定进展
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /final_defenses:
+    get:
+      tags:
+        - progress
+      summary: 获取结项答辩进展
+      description: |
+        根据用户身份获取结项答辩信息列表：
+
+        * `student`：返回自己的答辩信息
+
+        * `teacher`：返回指导学生的答辩信息
+
+        * `defense_group`：返回自己参与的答辩信息
+
+        ## 有访问权角色
+
+        * `student`
+
+        * `teacher`
+
+        * `defense_group`
+      responses:
+        "200":
+          description: 结项答辩进展内容列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalDefensesGetResponse"
+        "404":
+          description: 无结项答辩进展
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+    post:
+      tags:
+        - progress
+      summary: 提交结项答辩申请
+      description: |
+        学生提交结项答辩申请，默认状态为“无结论”、“未分配答辩组”。
+
+        每名学生仅能存在一条通过、一条无结论的答辩进展记录，但是可以有多条被打回的记录。
+
+        ## 有访问权角色
+
+        * `student`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalDefensesPostRequest"
+      responses:
+        "200":
+          description: 结项答辩申请提交成功
+        "409":
+          description: 结项答辩申请提交失败，状态存在冲突
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+  /final_defenses/{report_id}:
+    patch:
+      tags:
+        - progress
+      summary: 更新结项答辩进展
+      description: |
+        根据用户身份更新结项答辩信息的不同字段：
+
+        * `teacher`：审核结项答辩申请，若拒绝则该条记录被删除，若通过则由系统分配任务数最少的答辩组；
+
+        * `defense_group`：更新结项答辩信息，填写结果、评语和成绩。
+
+        每名学生仅能存在一条通过、一条待审核的答辩进展记录，但是可以有多条被打回的记录。
+
+        ## 有访问权角色
+
+        * `teacher`
+
+        * `defense_group`
+      parameters:
+        - name: report_id
+          description: 结项答辩进展序号
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/FinalDefensesRecordTeacherPatchRequest"
+                - $ref: "#/components/schemas/FinalDefensesRecordDefenseBoardPatchRequest"
+      responses:
+        "200":
+          description: 结项答辩进展更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalDefenseDetails"
+        "409":
+          description: 结项答辩进展更新失败，状态存在冲突
+        "404":
+          description: 未找到指定结项答辩进展
+        "400":
+          description: 请求体格式错误
+        "401":
+          description: 未登录
+        "403":
+          description: 权限不足
+
+components:
+  schemas:
+    # Objects
+    TopicType:
+      type: integer
+      description: |-
+        课题类型
+
+        * 0: 理论研究型
+
+        * 1: 应用开发型
+
+        * 2: 实验研究型
+
+        * 3: 工程设计型
+
+        * 4: 其他
+      enum: [0, 1, 2, 3, 4]
+    TopicReviewStatus:
+      type: integer
+      description: |-
+        课题审核状态
+
+        * 0: 待审核
+
+        * 1: 已通过
+
+        * 2: 已拒绝
+      enum: [0, 1, 2]
+    TopicBrief:
+      type: object
+      properties:
+        topic_id:
+          type: integer
+          description: 课题序号
+          example: 42
+        teacher_name:
+          type: string
+          description: 指导教师姓名
+          example: "林国瑞"
+        topic_name:
+          type: string
+          description: 课题名称
+          example: "基于深度学习的图像识别系统"
+        topic_max_students:
+          type: integer
+          description: 最大学生数
+          example: 3
+        topic_type:
+          $ref: "#/components/schemas/TopicType"
+        current_student_count:
+          type: integer
+          description: 当前已分配学生数
+          example: 2
+    TopicDetails:
+      type: object
+      properties:
+        topic_id:
+          type: integer
+          description: 课题序号
+          example: 42
+        major_id:
+          type: integer
+          description: 专业序号
+          example: 1
+        major_name:
+          type: string
+          description: 专业名称
+          example: "软件工程"
+        teacher_id:
+          type: integer
+          description: 指导教师序号
+          example: 5
+        teacher_name:
+          type: string
+          description: 指导教师姓名
+          example: "林国瑞"
+        topic_name:
+          type: string
+          description: 课题名称
+          example: "基于深度学习的图像识别系统"
+        topic_description:
+          type: string
+          description: 课题描述
+          example: "研究并实现一个基于CNN的图像分类系统..."
+        topic_max_students:
+          type: integer
+          description: 最大学生数
+          example: 3
+        topic_type:
+          $ref: "#/components/schemas/TopicType"
+        topic_review_status:
+          $ref: "#/components/schemas/TopicReviewStatus"
+        current_student_count:
+          type: integer
+          description: 当前已分配学生数
+          example: 2
+    ProgressReportType:
+      type: integer
+      enum: [0, 1]
+      description: |-
+        进展报告类型
+
+        * 0: 开题报告
+
+        * 1: 中期检查
+    ProgressOutcome:
+      type: integer
+      enum: [0, 1, 2]
+      description: |-
+        进展报告结论
+
+        * 0: 无结论
+
+        * 1: 已通过
+
+        * 2: 已打回
+    AssignmentStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: |-
+        选题申请状态
+
+        * 0: 待审核
+
+        * 1: 已通过
+
+        * 2: 已拒绝
+    Assignment:
+      type: object
+      properties:
+        student_id:
+          type: integer
+          description: 学生序号
+        student_name:
+          type: string
+          description: 学生姓名
+        student_major:
+          type: string
+          description: 学生专业
+        topic_id:
+          type: integer
+          description: 课题序号
+        topic_name:
+          type: string
+          description: 课题名称
+        request_time:
+          type: string
+          format: date-time
+          description: 申请时间
+        status:
+          $ref: "#/components/schemas/AssignmentStatus"
+    # Requests and responses
+    PingResponse:
+      type: string
+      enum:
+        - pong
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户登录名
+          example: "23010001"
+        password:
+          type: string
+          description: 用户密码
+          example: "ExamplePassword123!"
+      required:
+        - username
+        - password
+    UserGetResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 用户序号
+          example: 1
+        username:
+          type: string
+          description: 用户登录名
+          example: "23010001"
+        role:
+          type: string
+          enum:
+            - admin
+            - student
+            - teacher
+            - defense_board
+            - office
+          description: 用户身份
+          example: "student"
+        name:
+          type: string
+          description: 用户真实姓名
+          example: "张吉惟"
+        avatar:
+          type: string
+          description: 用户头像 Data URI
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
+      required:
+        - id
+        - username
+        - role
+    UserPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 用户真实姓名
+          example: "张吉惟"
+        password:
+          type: string
+          description: 用户密码
+          example: "NewExamplePassword123!"
+        avatar:
+          type: string
+          description: 用户头像 Data URI
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
+    UserPostRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户登录名
+          example: "23010001"
+        password:
+          type: string
+          description: 用户密码
+          example: "ExamplePassword123!"
+        role:
+          type: string
+          enum:
+            - admin
+            - student
+            - teacher
+            - defense_board
+            - office
+          description: 用户身份
+          example: "student"
+        name:
+          type: string
+          description: |-
+            用户真实姓名，身份为 `student`、`teacher` 时必填
+          example: "张吉惟"
+        major_id:
+          type: integer
+          description: |-
+            专业序号，身份为 `student` 时必填
+          example: 1
+        avatar:
+          type: string
+          description: 用户头像 Data URI
+          example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
+      required:
+        - username
+        - password
+        - role
+    TopicsGetResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 总记录数
+        page:
+          type: integer
+          description: 当前页码
+        page_size:
+          type: integer
+          description: 每页数量
+        topics:
+          type: array
+          description: 课题列表
+          items:
+            $ref: "#/components/schemas/TopicBrief"
+    TopicsPostRequest:
+      type: object
+      properties:
+        major_id:
+          type: integer
+          description: 专业序号
+          example: 1
+        topic_name:
+          type: string
+          description: 课题名称
+          example: "基于深度学习的图像识别系统"
+        topic_description:
+          type: string
+          description: 课题描述
+          example: "研究并实现一个基于CNN的图像分类系统..."
+        topic_max_students:
+          type: integer
+          description: 最大学生数
+          example: 3
+        topic_type:
+          $ref: "#/components/schemas/TopicType"
+      required:
+        - major_id
+        - topic_name
+        - topic_description
+        - topic_max_students
+        - topic_type
+    TopicsPostTeacherRequest:
+      type: object
+      properties:
+        topic_name:
+          type: string
+          description: 课题名称
+          example: "基于深度学习的图像识别系统"
+        topic_description:
+          type: string
+          description: 课题描述
+          example: "研究并实现一个基于CNN的图像分类系统..."
+        topic_max_students:
+          type: integer
+          description: 最大学生数
+          example: 3
+        topic_type:
+          $ref: "#/components/schemas/TopicType"
+    TopicsPostOfficeRequest:
+      type: object
+      properties:
+        topic_review_status:
+          $ref: "#/components/schemas/TopicReviewStatus"
+      required:
+        - topic_review_status
+    TopicsPostAdminRequest:
+      type: object
+      properties:
+        topic_name:
+          type: string
+          description: 课题名称
+          example: "基于深度学习的图像识别系统"
+        topic_description:
+          type: string
+          description: 课题描述
+          example: "研究并实现一个基于CNN的图像分类系统..."
+        topic_max_students:
+          type: integer
+          description: 最大学生数
+          example: 3
+        topic_type:
+          $ref: "#/components/schemas/TopicType"
+        topic_review_status:
+          $ref: "#/components/schemas/TopicReviewStatus"
+    TopicCreateResponse:
+      type: object
+      properties:
+        topic_id:
+          type: integer
+          description: 创建的课题序号
+          example: 42
+    AssignmentsPostRequest:
+      type: object
+      properties:
+        topic_id:
+          type: integer
+          description: 申请的课题序号
+          example: 42
+      required:
+        - topic_id
+    AssignmentRecordPatchRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+          description: 审核结果
+      required:
+        - approved
+    AssignmentsGetResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 总记录数
+        page:
+          type: integer
+          description: 当前页码
+        page_size:
+          type: integer
+          description: 每页数量
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Assignment"
+    ProgressReportsGetResponse:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgressReportDetailResponse"
+    ProgressReportDetailResponse:
+      type: object
+      properties:
+        prog_report_id:
+          type: integer
+          description: 报告序号
+        topic_id:
+          type: integer
+          description: 课题序号
+        student_id:
+          type: integer
+          description: 学生序号
+        student_name:
+          type: string
+          description: 学生姓名
+        prog_report_type:
+          $ref: "#/components/schemas/ProgressReportType"
+        prog_report_time:
+          type: string
+          format: date-time
+          description: 提交时间
+        prog_report_attachment:
+          type: string
+          description: 附件URL或二进制数据
+        prog_report_outcome:
+          $ref: "#/components/schemas/ProgressOutcome"
+        prog_report_comment:
+          type: string
+          description: 审核意见
+        prog_report_grade:
+          type: number
+          format: decimal
+          description: 成绩
+          example: 85.5
+    ProgressReportsPostRequest:
+      type: object
+      properties:
+        attachment:
+          type: string
+          description: 附件数据 Data URI
+      required:
+        - attachment
+    ProgressReportRecordPatchRequest:
+      type: object
+      properties:
+        outcome:
+          $ref: "#/components/schemas/ProgressOutcome"
+        comment:
+          type: string
+          description: 进展报告意见
+        grade:
+          type: number
+          format: decimal
+          description: 进展报告得分
+      required:
+        - outcome
+    FinalDefensesGetResponse:
+      type: object
+      properties:
+        defenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/FinalDefenseDetails"
+    FinalDefenseDetails:
+      type: object
+      properties:
+        final_def_id:
+          type: integer
+          description: 答辩编号
+        topic_id:
+          type: integer
+          description: 课题编号
+        topic_name:
+          type: string
+          description: 课题名称
+        student_id:
+          type: integer
+          description: 学生编号
+        student_name:
+          type: string
+          description: 学生姓名
+        defense_board_id:
+          type: integer
+          description: 答辩组编号
+        final_def_time:
+          type: string
+          format: date-time
+          description: 结项答辩申请时间
+        final_def_attachment:
+          type: string
+          description: 结项答辩附件 Data URI
+        final_def_outcome:
+          type: boolean
+          description: 结项答辩结论
+        final_def_comment:
+          type: string
+          description: 结项答辩意见
+        final_def_grade:
+          type: number
+          format: decimal
+          description: 结项答辩分数
+          example: 92.0
+      required:
+        - final_def_id
+        - topic_id
+        - topic_name
+        - student_id
+        - student_name
+        - final_def_time
+        - final_def_attachment
+    FinalDefensesPostRequest:
+      type: object
+      properties:
+        attachment:
+          type: string
+          description: 结项答辩附件 Data URI
+      required:
+        - attachment
+    FinalDefensesRecordTeacherPatchRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+          description: 结项答辩申请审核意见
+      required:
+        - approved
+    FinalDefensesRecordDefenseBoardPatchRequest:
+      type: object
+      properties:
+        outcome:
+          type: boolean
+          description: 结项答辩结论
+        comment:
+          type: string
+          description: 结项答辩意见
+        grade:
+          type: number
+          format: decimal
+          description: 结项答辩分数
+      required:
+        - outcome
+        - comment
+        - grade
