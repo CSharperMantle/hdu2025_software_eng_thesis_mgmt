@@ -1,5 +1,5 @@
 use actix_session::Session;
-use actix_web::{HttpResponse, ResponseError, get, patch, post, web};
+use actix_web::{HttpResponse, get, patch, post, web};
 use backend_database::DbPool;
 use backend_database::model::*;
 use chrono::{TimeZone, Utc};
@@ -788,10 +788,7 @@ pub async fn update_topic(
                     .set(changeset)
                     .get_result::<Topic>(conn)
                     .map_err(|e| {
-                        ApiError::InternalServerError(format!(
-                            "Failed to update topic: {}",
-                            e
-                        ))
+                        ApiError::InternalServerError(format!("Failed to update topic: {}", e))
                     })?
             }
             AuthInfoUserRole::Office => {
