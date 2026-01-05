@@ -149,11 +149,11 @@ import {
 	getTopicReviewStatusName,
 	getTopicTypeName,
 } from '@/api'
-import type { TopicBrief, TopicDetails } from '@/api'
+import type { TopicBrief, TopicDetails, UserGetResponse } from '@/api'
 import { API_BASE_URL } from '@/config'
 
 const currentPart = 0
-const userInfo = ref<any>(null)
+const userInfo = ref<UserGetResponse | null>(null)
 const topics = ref<TopicBrief[]>([])
 const loading = ref(false)
 const page = ref(1)

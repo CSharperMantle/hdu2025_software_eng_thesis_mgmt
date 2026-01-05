@@ -61,11 +61,11 @@
 <script lang="ts" setup>
 import { onMounted, ref } from 'vue'
 import { createApiClient, getErrorMessage, getTopicTypeName } from '@/api'
-import type { TopicBrief } from '@/api'
+import type { TopicBrief, UserGetResponse } from '@/api'
 import { API_BASE_URL } from '@/config'
 
 const currentPart = 0
-const userInfo = ref<any>(null)
+const userInfo = ref<UserGetResponse | null>(null)
 const topics = ref<TopicBrief[]>([])
 const selectedTopicIds = ref<Set<number>>(new Set())
 const loading = ref(false)

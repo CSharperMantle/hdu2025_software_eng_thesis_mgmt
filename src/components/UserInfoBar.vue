@@ -1,8 +1,9 @@
 <template>
   <v-banner lines="one" class="elevation-2 rounded-0">
     <template #prepend>
-      <v-avatar :image="userInfo?.avatar || undefined" color="primary">
+      <v-avatar  color="primary">
         <span v-if="!userInfo?.avatar">{{ avatarText }}</span>
+        <v-img v-else :src="userInfo?.avatar"/>
       </v-avatar>
     </template>
 
@@ -16,10 +17,11 @@
 </template>
 
 <script lang="ts" setup>
+import type { UserGetResponse } from '@/api';
 import { computed } from 'vue'
 
 const props = defineProps<{
-  userInfo: any
+  userInfo: UserGetResponse | undefined
   role?: 'student' | 'teacher' | 'admin' | 'office' | 'defense_board'
 }>()
 

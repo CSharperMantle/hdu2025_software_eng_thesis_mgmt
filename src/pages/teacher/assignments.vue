@@ -68,11 +68,11 @@ import {
 	createApiClient,
 	getErrorMessage,
 } from '@/api'
-import type { Assignment } from '@/api'
+import type { Assignment, UserGetResponse } from '@/api'
 import { API_BASE_URL } from '@/config'
 
 const currentPart = 1 // Assignment review is part 1 in TeacherDrawer
-const userInfo = ref<any>(null)
+const userInfo = ref<UserGetResponse | null>(null)
 const assignments = ref<Assignment[]>([])
 const loading = ref(false)
 const page = ref(1)
