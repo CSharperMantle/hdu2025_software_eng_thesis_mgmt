@@ -100,9 +100,14 @@
 
           break
         }
+        case 'defense_board': {
+          router.push('/defense-board/scoring')
+
+          break
+        }
       // No default
       }
-      // TODO: Add redirects for other roles (admin, defense_board)
+      // TODO: Add redirect for admin role
     } catch (error: any) {
       console.error('Login failed:', error)
 
