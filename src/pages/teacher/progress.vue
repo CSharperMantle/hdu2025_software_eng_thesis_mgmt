@@ -28,11 +28,10 @@
         <v-expansion-panel-text>
           <v-stepper
             alt-labels
-            flat
+            elevation="0"
             hide-actions
             :items="getStepItems(report)"
             :model-value="getCurrentStep(report)"
-            outlined
           >
             <!-- Step 1: Topic Selection -->
             <template #item.1>
@@ -155,15 +154,32 @@
                     <div class="text-subtitle-2 text-grey mb-1">答辩组意见:</div>
                     <div class="text-body-2">{{ report.defense.final_def_comment }}</div>
                   </div>
-                  <v-btn
-                    v-if="report.defense.final_def_attachment"
-                    class="mt-2"
-                    color="info"
-                    @click="downloadAttachment(report.defense.final_def_attachment, `${report.student_name}_答辩材料`)"
-                  >
-                    <v-icon start>mdi-download</v-icon>
-                    下载附件
-                  </v-btn>
+                  <div class="d-flex justify-space-between mt-2">
+                    <v-btn
+                      v-if="report.defense.final_def_attachment"
+                      color="info"
+                      @click="downloadAttachment(report.defense.final_def_attachment, `${report.student_name}_答辩材料`)"
+                    >
+                      <v-icon start>mdi-download</v-icon>
+                      下载附件
+                    </v-btn>
+                    <v-spacer class="ga-2" v-else />
+                    <div v-if="report.defense.final_def_outcome === null || report.defense.final_def_outcome === undefined" class="d-flex gap-2">
+                      <v-btn
+                        color="error"
+                        @click="rejectDefense(report.defense)"
+                      >
+                        拒绝
+                      </v-btn>
+                      <v-btn
+                        color="success"
+                        class="ml-2"
+                        @click="approveDefense(report.defense)"
+                      >
+                        批准答辩
+                      </v-btn>
+                    </div>
+                  </div>
                 </div>
                 <div v-else class="text-grey">
                   学生尚未提交
@@ -538,6 +554,54 @@
     }
   }
 
+  async function approveDefense (defense: FinalDefenseDetails) {
+    try {
+      await apiClient.finalDefenses.updateFinalDefenseAsTeacher(
+        defense.final_def_id,
+        { approved: true },
+      )
+      snackbar.value = {
+        show: true,
+        message: '答辩申请已批准',
+        color: 'success',
+      }
+      // Reload data
+      await loadFinalDefenses()
+      await groupReports()
+    } catch (error: any) {
+      console.error('Failed to approve defense:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('defense', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  async function rejectDefense (defense: FinalDefenseDetails) {
+    try {
+      await apiClient.finalDefenses.updateFinalDefenseAsTeacher(
+        defense.final_def_id,
+        { approved: false },
+      )
+      snackbar.value = {
+        show: true,
+        message: '答辩申请已拒绝',
+        color: 'success',
+      }
+      // Reload data
+      await loadFinalDefenses()
+      await groupReports()
+    } catch (error: any) {
+      console.error('Failed to reject defense:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('defense', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
   onMounted(async () => {
     fetchUserInfo()
     await loadProgressReports()
@@ -545,3 +609,9 @@
     await groupReports()
   })
 </script>
+
+<style scoped>
+:deep(.v-stepper-header) {
+  box-shadow: none!important;
+}
+</style>
