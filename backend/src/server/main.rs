@@ -1,6 +1,6 @@
 mod api;
-mod helper;
-mod model;
+mod auth;
+mod dto;
 
 use actix_files::Files;
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};

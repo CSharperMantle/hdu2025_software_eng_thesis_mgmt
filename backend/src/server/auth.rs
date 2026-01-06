@@ -5,7 +5,7 @@ use argon2::{
     password_hash::{PasswordHasher, Salt, SaltString, rand_core::OsRng},
 };
 
-use crate::model::*;
+use crate::dto::*;
 
 #[macro_export]
 macro_rules! map_schema_role {
