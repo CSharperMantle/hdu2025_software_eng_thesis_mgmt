@@ -1,7 +1,7 @@
 <template>
   <AppBar />
 
-  <div class="fill-height d-flex">
+  <div class="login-background fill-height d-flex">
     <v-card class="ma-auto w-50">
       <template #title>
         <span class="font-weight-black">登录</span>
@@ -119,3 +119,12 @@ async function submit() {
   }
 }
 </script>
+
+<style scoped>
+.login-background {
+  background-image: url('/background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+</style>

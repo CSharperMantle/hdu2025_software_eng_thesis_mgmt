@@ -20,9 +20,9 @@ export default createVuetify({
       light: {
         dark: false,
         colors: {
-          primary: colors.red.darken1, // #E53935
-          secondary: colors.red.lighten4, // #FFCDD2
-          accent: colors.indigo.base, // #3F51B5
+          primary: colors.purple.base,
+          secondary: colors.teal.base,
+          accent: colors.indigo.base,
         },
       },
     },
