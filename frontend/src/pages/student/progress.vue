@@ -349,7 +349,7 @@ async function loadFinalDefense() {
   try {
     const response = await apiClient.finalDefenses.getFinalDefenses()
     if (response.defenses && response.defenses.length > 0) {
-      finalDefense.value = response.defenses[0]
+      finalDefense.value = response.defenses[0] ?? null
     }
   } catch (error: any) {
     console.error('Failed to load final defense:', error)

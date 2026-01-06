@@ -156,7 +156,9 @@ export function getErrorMessage(endpoint: string, statusCode?: number): string {
   }
 
   // Get specific message or fallback to default
-  const message = messages[statusCode] || ERROR_MESSAGES.default[statusCode]
+  const message =
+    (messages as Record<number, string>)[statusCode] ||
+    (ERROR_MESSAGES.default as Record<number, string>)[statusCode]
 
   return message || '操作失败，请稍后重试'
 }

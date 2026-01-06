@@ -290,13 +290,6 @@ const snackbar = ref({
   color: 'success',
 })
 
-const stepItems = [
-  { title: '选题', value: 1 },
-  { title: '开题', value: 2 },
-  { title: '中期', value: 3 },
-  { title: '答辩', value: 4 },
-]
-
 function getStepItems(report: GroupedReport) {
   const currentStep = getCurrentStep(report)
   return [
