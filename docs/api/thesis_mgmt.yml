@@ -747,6 +747,8 @@ components:
           type: integer
           description: 最大学生数
           example: 3
+        topic_review_status:
+          $ref: "#/components/schemas/TopicReviewStatus"
         topic_type:
           $ref: "#/components/schemas/TopicType"
         current_student_count:
