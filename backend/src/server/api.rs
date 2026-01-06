@@ -2,7 +2,7 @@ use actix_session::Session;
 use actix_web::{HttpResponse, get, patch, post, web};
 use backend_database::DbPool;
 use backend_database::model::*;
-use chrono::{TimeZone, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -46,7 +46,7 @@ pub async fn login(
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
     let user = sysuser::dsl::sysuser
-        .filter(sysuser::columns::user_login.eq(&req.username))
+        .filter(sysuser::columns::user_name.eq(&req.username))
         .first::<SysUser>(&mut conn)
         .map_err(|_| ApiError::Unauthorized)?;
 
@@ -59,30 +59,25 @@ pub async fn login(
 
     if password_good {
         let auth_info = map_schema_role!(
-            &mut conn, user.user_id, Err(ApiError::InternalServerError(str!("User not in any role"))),
+            &mut conn, &user.user_name, Err(ApiError::InternalServerError(str!("User not in any role"))),
             sysadmin::dsl::sysadmin => SysAdmin => Ok(AuthInfo::SysAdmin {
-                user_id: user.user_id,
-                username: user.user_login.clone(),
+                username: user.user_name,
                 impersonating: None,
             });
             student::dsl::student => Student => Ok(AuthInfo::User {
-                user_id: user.user_id,
-                username: user.user_login.clone(),
+                username: user.user_name,
                 role: AuthInfoUserRole::Student,
             });
             teacher::dsl::teacher => Teacher => Ok(AuthInfo::User {
-                user_id: user.user_id,
-                username: user.user_login.clone(),
+                username: user.user_name,
                 role: AuthInfoUserRole::Teacher,
             });
             defenseboard::dsl::defenseboard => DefenseBoard => Ok(AuthInfo::User {
-                user_id: user.user_id,
-                username: user.user_login.clone(),
+                username: user.user_name,
                 role: AuthInfoUserRole::DefenseBoard,
             });
             office::dsl::office => Office => Ok(AuthInfo::User {
-                user_id: user.user_id,
-                username: user.user_login.clone(),
+                username: user.user_name,
                 role: AuthInfoUserRole::Office,
             });
         )?;
@@ -120,34 +115,34 @@ pub async fn get_current_user(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
 
     let mut conn = pool
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     let sys_user = sysuser::dsl::sysuser
-        .find(user_id)
+        .find(&username)
         .first::<SysUser>(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user information")))?;
 
     // Get user role and name based on role
     let (role, name) = map_schema_role!(
-        &mut conn, user_id, Err(ApiError::InternalServerError(str!("User not in any role"))),
+        &mut conn, &username, Err(ApiError::InternalServerError(str!("User not in any role"))),
         sysadmin::dsl::sysadmin => SysAdmin => {
             Ok((UserRole::Admin, None))
         };
         student::dsl::student => Student => {
             let student = student::dsl::student
-                .find(user_id)
+                .find(&username)
                 .first::<Student>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to get student information")))?;
             Ok((UserRole::Student, Some(student.student_name)))
         };
         teacher::dsl::teacher => Teacher => {
             let teacher = teacher::dsl::teacher
-                .find(user_id)
+                .find(&username)
                 .first::<Teacher>(&mut conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to get teacher information")))?;
             Ok((UserRole::Teacher, Some(teacher.teacher_name)))
@@ -161,8 +156,7 @@ pub async fn get_current_user(
     )?;
 
     Ok(HttpResponse::Ok().json(UserGetResponse {
-        id: sys_user.user_id,
-        username: sys_user.user_login,
+        username: sys_user.user_name.clone(),
         role,
         name,
         avatar: sys_user.user_avatar,
@@ -181,8 +175,8 @@ pub async fn update_current_user(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
 
     let mut conn = pool
         .get()
@@ -202,7 +196,7 @@ pub async fn update_current_user(
             changeset.user_password_salt = Some(salt);
         }
 
-        diesel::update(sysuser::dsl::sysuser.find(user_id))
+        diesel::update(sysuser::dsl::sysuser.find(&username))
             .set(changeset)
             .execute(conn)
             .map_err(|_| {
@@ -210,7 +204,7 @@ pub async fn update_current_user(
             })?;
 
         if let Some(ref avatar) = req.avatar {
-            diesel::update(sysuser::dsl::sysuser.find(user_id))
+            diesel::update(sysuser::dsl::sysuser.find(&username))
                 .set(sysuser::columns::user_avatar.eq(avatar))
                 .execute(conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to update avatar")))?;
@@ -218,11 +212,11 @@ pub async fn update_current_user(
 
         if let Some(ref name) = req.name {
             // Is student?
-            if diesel::select(diesel::dsl::exists(student::dsl::student.find(user_id)))
+            if diesel::select(diesel::dsl::exists(student::dsl::student.find(&username)))
                 .get_result::<bool>(conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
             {
-                diesel::update(student::dsl::student.find(user_id))
+                diesel::update(student::dsl::student.find(&username))
                     .set(student::columns::student_name.eq(name))
                     .execute(conn)
                     .map_err(|_| {
@@ -230,11 +224,11 @@ pub async fn update_current_user(
                     })?;
             }
             // Is teacher?
-            else if diesel::select(diesel::dsl::exists(teacher::dsl::teacher.find(user_id)))
+            else if diesel::select(diesel::dsl::exists(teacher::dsl::teacher.find(&username)))
                 .get_result::<bool>(conn)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to check user role")))?
             {
-                diesel::update(teacher::dsl::teacher.find(user_id))
+                diesel::update(teacher::dsl::teacher.find(&username))
                     .set(teacher::columns::teacher_name.eq(name))
                     .execute(conn)
                     .map_err(|_| {
@@ -280,7 +274,7 @@ pub async fn create_user(
 
         let new_sys_user = diesel::insert_into(sysuser::dsl::sysuser)
             .values(NewSysUser {
-                user_login: &req.username,
+                user_name: &req.username,
                 user_password_hash: &hash,
                 user_password_salt: &salt,
                 user_avatar: req.avatar.as_deref(),
@@ -290,12 +284,12 @@ pub async fn create_user(
         match req.role {
             UserRole::Admin => diesel::insert_into(sysadmin::dsl::sysadmin)
                 .values(NewSysAdmin {
-                    user_id: new_sys_user.user_id,
+                    user_name: &new_sys_user.user_name,
                 })
                 .execute(conn),
             UserRole::Student => diesel::insert_into(student::dsl::student)
                 .values(NewStudent {
-                    user_id: new_sys_user.user_id,
+                    user_name: &new_sys_user.user_name,
                     topic_id: None,
                     major_id: req.major_id.ok_or(ApiError::BadRequest(str!(
                         "Major ID is required for student role"
@@ -303,12 +297,12 @@ pub async fn create_user(
                     student_name: name.as_deref().ok_or(ApiError::BadRequest(str!(
                         "Name is required for student role"
                     )))?,
-                    assn_time: None,
+                    assn_time: Utc::now(),
                 })
                 .execute(conn),
             UserRole::Teacher => diesel::insert_into(teacher::dsl::teacher)
                 .values(NewTeacher {
-                    user_id: new_sys_user.user_id,
+                    user_name: &new_sys_user.user_name,
                     teacher_name: name.as_deref().ok_or(ApiError::BadRequest(str!(
                         "Name is required for teacher role"
                     )))?,
@@ -316,12 +310,12 @@ pub async fn create_user(
                 .execute(conn),
             UserRole::DefenseBoard => diesel::insert_into(defenseboard::dsl::defenseboard)
                 .values(NewDefenseBoard {
-                    user_id: new_sys_user.user_id,
+                    user_name: &new_sys_user.user_name,
                 })
                 .execute(conn),
             UserRole::Office => diesel::insert_into(office::dsl::office)
                 .values(NewOffice {
-                    user_id: new_sys_user.user_id,
+                    user_name: &new_sys_user.user_name,
                 })
                 .execute(conn),
         }
@@ -330,8 +324,7 @@ pub async fn create_user(
     })?;
 
     Ok(HttpResponse::Ok().json(UserGetResponse {
-        id: new_sys_user.user_id,
-        username: new_sys_user.user_login,
+        username: new_sys_user.user_name,
         role: req.role,
         name,
         avatar: req.avatar.clone(),
@@ -350,8 +343,8 @@ pub async fn get_topics(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -368,7 +361,7 @@ pub async fn get_topics(
         AuthInfoUserRole::Student => {
             // Student: Get topics approved for their major
             let student_info = student::dsl::student
-                .find(user_id)
+                .find(&username)
                 .first::<Student>(&mut conn)
                 .map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to get student information"))
@@ -394,7 +387,7 @@ pub async fn get_topics(
             // Teacher: Get their own topics
             let query = topic::table
                 .inner_join(teacher::table)
-                .filter(topic::columns::user_id.eq(user_id));
+                .filter(topic::columns::teacher_user_name.eq(&username));
             let total = query
                 .count()
                 .get_result::<i64>(&mut conn)
@@ -475,15 +468,15 @@ pub async fn create_topic(
         return Err(ApiError::Forbidden);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
 
     let mut conn = pool
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     let has_such_teacher: i64 = teacher::dsl::teacher
-        .find(user_id)
+        .find(&username)
         .count()
         .get_result(&mut conn)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to check teacher existence")))?;
@@ -496,7 +489,7 @@ pub async fn create_topic(
     let new_topic = conn.build_transaction().read_write().run(|conn| {
         let new_topic = NewTopic {
             major_id: req.major_id,
-            user_id,
+            teacher_user_name: &username,
             topic_name: &req.topic_name,
             topic_description: &req.topic_description,
             topic_max_students: req.topic_max_students,
@@ -535,8 +528,8 @@ pub async fn search_topics(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -554,7 +547,7 @@ pub async fn search_topics(
         AuthInfoUserRole::Student => {
             // Student: Get topics approved for their major with keyword search
             let student_info = student::dsl::student
-                .find(user_id)
+                .find(&username)
                 .first::<Student>(&mut conn)
                 .map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to get student information"))
@@ -581,7 +574,7 @@ pub async fn search_topics(
             // Teacher: Get their own topics with keyword search
             let query = topic::table
                 .inner_join(teacher::table)
-                .filter(topic::columns::user_id.eq(user_id))
+                .filter(topic::columns::teacher_user_name.eq(&username))
                 .filter(topic::columns::topic_name.like(&search_pattern));
             let total = query
                 .count()
@@ -656,8 +649,8 @@ pub async fn get_topic_detail(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -676,7 +669,7 @@ pub async fn get_topic_detail(
         AuthInfoUserRole::Student => {
             // Student: Get topics approved for their major
             let student_info = student::dsl::student
-                .filter(student::columns::user_id.eq(user_id))
+                .find(&username)
                 .first::<Student>(&mut conn)
                 .map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to get student information"))
@@ -688,7 +681,7 @@ pub async fn get_topic_detail(
         }
         AuthInfoUserRole::Teacher => {
             // Teacher: Get topics created by themselves
-            query_builder = query_builder.filter(topic::columns::user_id.eq(user_id));
+            query_builder = query_builder.filter(topic::columns::teacher_user_name.eq(&username));
         }
         AuthInfoUserRole::Office | AuthInfoUserRole::DefenseBoard => {
             // Office and Defense Board: Get all topics without additional filtering
@@ -715,7 +708,7 @@ pub async fn get_topic_detail(
         topic_id: topic.topic_id,
         major_id: topic.major_id,
         major_name: major.major_name,
-        teacher_id: topic.user_id,
+        teacher_user_name: topic.teacher_user_name,
         teacher_name: teacher.teacher_name,
         topic_name: topic.topic_name,
         topic_description: topic.topic_description,
@@ -743,8 +736,8 @@ pub async fn update_topic(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -767,7 +760,7 @@ pub async fn update_topic(
         let topic = match user_role {
             AuthInfoUserRole::Teacher => {
                 // Is a teacher!
-                if topic.user_id != user_id {
+                if topic.teacher_user_name != username {
                     // Teacher can only update topics they created
                     return Err(ApiError::Forbidden);
                 }
@@ -837,7 +830,7 @@ pub async fn update_topic(
         };
 
         let teacher = teacher::dsl::teacher
-            .find(topic.user_id)
+            .find(&topic.teacher_user_name)
             .first::<Teacher>(conn)
             .map_err(|e| {
                 ApiError::InternalServerError(format!("Failed to load topic teacher: {}", e))
@@ -861,7 +854,7 @@ pub async fn update_topic(
             topic_id: topic.topic_id,
             major_id: topic.major_id,
             major_name: major.major_name,
-            teacher_id: topic.user_id,
+            teacher_user_name: topic.teacher_user_name,
             teacher_name: teacher.teacher_name,
             topic_name: topic.topic_name,
             topic_description: topic.topic_description,
@@ -894,8 +887,8 @@ pub async fn get_assignments(
     let is_admin = is_session_admin(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Can't deserialize auth info")))?;
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = if is_admin {
         None
     } else {
@@ -916,7 +909,6 @@ pub async fn get_assignments(
     // FIXME: Negative checks
     let offset = (page - 1) * page_size;
     let want = offset + page_size;
-    let epoch = Utc.timestamp_opt(0, 0).single().unwrap();
 
     let mut conn = pool
         .get()
@@ -940,7 +932,7 @@ pub async fn get_assignments(
             .order(assignmentrequest::columns::assn_req_time.desc())
             .limit(want)
             .select((
-                assignmentrequest::columns::user_id,
+                assignmentrequest::columns::student_user_name,
                 student::columns::student_name,
                 major::columns::major_name,
                 assignmentrequest::columns::topic_id,
@@ -948,7 +940,7 @@ pub async fn get_assignments(
                 assignmentrequest::columns::assn_req_time,
             ))
             .load::<(
-                i32,
+                String,
                 String,
                 String,
                 i32,
@@ -965,7 +957,7 @@ pub async fn get_assignments(
             .order(student::columns::assn_time.desc())
             .limit(want)
             .select((
-                student::columns::user_id,
+                student::columns::user_name,
                 student::columns::student_name,
                 major::columns::major_name,
                 topic::columns::topic_id,
@@ -973,12 +965,12 @@ pub async fn get_assignments(
                 student::columns::assn_time,
             ))
             .load::<(
+                String,
+                String,
+                String,
                 i32,
                 String,
-                String,
-                i32,
-                String,
-                Option<chrono::DateTime<chrono::Utc>>,
+                chrono::DateTime<chrono::Utc>,
             )>(&mut conn)
             .map_err(|_| ApiError::InternalServerError(str!("Failed to load assignments")))?;
 
@@ -986,8 +978,8 @@ pub async fn get_assignments(
     } else {
         match user_role {
             Some(AuthInfoUserRole::Student) => {
-                let pending_q =
-                    pending_base.filter(assignmentrequest::columns::user_id.eq(user_id));
+                let pending_q = pending_base
+                    .filter(assignmentrequest::columns::student_user_name.eq(&username));
                 let pending_total: i64 = pending_q.count().get_result(&mut conn).map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to count assignments"))
                 })?;
@@ -995,7 +987,7 @@ pub async fn get_assignments(
                     .order(assignmentrequest::columns::assn_req_time.desc())
                     .limit(want)
                     .select((
-                        assignmentrequest::columns::user_id,
+                        assignmentrequest::columns::student_user_name,
                         student::columns::student_name,
                         major::columns::major_name,
                         assignmentrequest::columns::topic_id,
@@ -1003,7 +995,7 @@ pub async fn get_assignments(
                         assignmentrequest::columns::assn_req_time,
                     ))
                     .load::<(
-                        i32,
+                        String,
                         String,
                         String,
                         i32,
@@ -1014,7 +1006,7 @@ pub async fn get_assignments(
                         ApiError::InternalServerError(str!("Failed to load assignments"))
                     })?;
 
-                let approved_q = approved_base.filter(student::columns::user_id.eq(user_id));
+                let approved_q = approved_base.filter(student::columns::user_name.eq(&username));
                 let approved_total: i64 =
                     approved_q.count().get_result(&mut conn).map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to count assignments"))
@@ -1023,7 +1015,7 @@ pub async fn get_assignments(
                     .order(student::columns::assn_time.desc())
                     .limit(want)
                     .select((
-                        student::columns::user_id,
+                        student::columns::user_name,
                         student::columns::student_name,
                         major::columns::major_name,
                         topic::columns::topic_id,
@@ -1031,12 +1023,12 @@ pub async fn get_assignments(
                         student::columns::assn_time,
                     ))
                     .load::<(
+                        String,
+                        String,
+                        String,
                         i32,
                         String,
-                        String,
-                        i32,
-                        String,
-                        Option<chrono::DateTime<chrono::Utc>>,
+                        chrono::DateTime<chrono::Utc>,
                     )>(&mut conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to load assignments"))
@@ -1045,7 +1037,8 @@ pub async fn get_assignments(
                 (pending_total, pending_rows, approved_total, approved_rows)
             }
             Some(AuthInfoUserRole::Teacher) => {
-                let pending_q = pending_base.filter(topic::columns::user_id.eq(user_id));
+                let pending_q =
+                    pending_base.filter(topic::columns::teacher_user_name.eq(&username));
                 let pending_total: i64 = pending_q.count().get_result(&mut conn).map_err(|_| {
                     ApiError::InternalServerError(str!("Failed to count assignments"))
                 })?;
@@ -1053,7 +1046,7 @@ pub async fn get_assignments(
                     .order(assignmentrequest::columns::assn_req_time.desc())
                     .limit(want)
                     .select((
-                        assignmentrequest::columns::user_id,
+                        assignmentrequest::columns::student_user_name,
                         student::columns::student_name,
                         major::columns::major_name,
                         assignmentrequest::columns::topic_id,
@@ -1061,7 +1054,7 @@ pub async fn get_assignments(
                         assignmentrequest::columns::assn_req_time,
                     ))
                     .load::<(
-                        i32,
+                        String,
                         String,
                         String,
                         i32,
@@ -1072,7 +1065,8 @@ pub async fn get_assignments(
                         ApiError::InternalServerError(str!("Failed to load assignments"))
                     })?;
 
-                let approved_q = approved_base.filter(topic::columns::user_id.eq(user_id));
+                let approved_q =
+                    approved_base.filter(topic::columns::teacher_user_name.eq(&username));
                 let approved_total: i64 =
                     approved_q.count().get_result(&mut conn).map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to count assignments"))
@@ -1081,7 +1075,7 @@ pub async fn get_assignments(
                     .order(student::columns::assn_time.desc())
                     .limit(want)
                     .select((
-                        student::columns::user_id,
+                        student::columns::user_name,
                         student::columns::student_name,
                         major::columns::major_name,
                         topic::columns::topic_id,
@@ -1089,12 +1083,12 @@ pub async fn get_assignments(
                         student::columns::assn_time,
                     ))
                     .load::<(
+                        String,
+                        String,
+                        String,
                         i32,
                         String,
-                        String,
-                        i32,
-                        String,
-                        Option<chrono::DateTime<chrono::Utc>>,
+                        chrono::DateTime<chrono::Utc>,
                     )>(&mut conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to load assignments"))
@@ -1109,9 +1103,9 @@ pub async fn get_assignments(
     let total = pending_total + approved_total;
 
     let pending = pending_rows.into_iter().map(
-        |(student_id, student_name, student_major, topic_id, topic_name, request_time)| {
+        |(student_user_name, student_name, student_major, topic_id, topic_name, request_time)| {
             Assignment {
-                student_id,
+                student_user_name,
                 student_name,
                 student_major,
                 topic_id,
@@ -1122,14 +1116,16 @@ pub async fn get_assignments(
         },
     );
     let approved = approved_rows.into_iter().map(
-        |(student_id, student_name, student_major, topic_id, topic_name, assn_time)| Assignment {
-            student_id,
-            student_name,
-            student_major,
-            topic_id,
-            topic_name,
-            request_time: assn_time.unwrap_or(epoch),
-            status: AssignmentStatus::Approved,
+        |(student_user_name, student_name, student_major, topic_id, topic_name, assn_time)| {
+            Assignment {
+                student_user_name,
+                student_name,
+                student_major,
+                topic_id,
+                topic_name,
+                request_time: assn_time,
+                status: AssignmentStatus::Approved,
+            }
         },
     );
 
@@ -1160,8 +1156,8 @@ pub async fn create_assignment(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
     if !matches!(user_role, AuthInfoUserRole::Student) {
@@ -1174,7 +1170,7 @@ pub async fn create_assignment(
 
     conn.build_transaction().read_write().run(|conn| {
         let student = student::dsl::student
-            .find(user_id)
+            .find(&username)
             .first::<Student>(conn)
             .map_err(|_| ApiError::NotFound)?;
 
@@ -1204,7 +1200,7 @@ pub async fn create_assignment(
 
         let has_pending = diesel::select(diesel::dsl::exists(
             assignmentrequest::dsl::assignmentrequest
-                .filter(assignmentrequest::columns::user_id.eq(user_id))
+                .filter(assignmentrequest::columns::student_user_name.eq(&username))
                 .filter(assignmentrequest::columns::topic_id.eq(req.topic_id)),
         ))
         .get_result(conn)
@@ -1217,7 +1213,7 @@ pub async fn create_assignment(
 
         diesel::insert_into(assignmentrequest::dsl::assignmentrequest)
             .values(NewAssignmentRequest {
-                user_id,
+                student_user_name: &username,
                 topic_id: req.topic_id,
                 assn_req_time: Utc::now(),
             })
@@ -1230,11 +1226,11 @@ pub async fn create_assignment(
     Ok(HttpResponse::Created().finish())
 }
 
-#[patch("/assignments/{student_id}/{topic_id}")]
+#[patch("/assignments/{student_username}/{topic_id}")]
 pub async fn update_assignment_status(
     pool: web::Data<DbPool>,
     session: Session,
-    path: web::Path<(i32, i32)>,
+    path: web::Path<(String, i32)>,
     req: web::Json<AssignmentRecordPatchRequest>,
 ) -> Result<HttpResponse, ApiError> {
     use backend_database::schema::*;
@@ -1243,8 +1239,8 @@ pub async fn update_assignment_status(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -1253,7 +1249,7 @@ pub async fn update_assignment_status(
         return Err(ApiError::Forbidden);
     }
 
-    let (student_id, topic_id) = path.into_inner();
+    let (student_username, topic_id) = path.into_inner();
 
     let mut conn = pool
         .get()
@@ -1261,7 +1257,7 @@ pub async fn update_assignment_status(
 
     conn.build_transaction().read_write().run(|conn| {
         let req_row = assignmentrequest::dsl::assignmentrequest
-            .find((student_id, topic_id))
+            .find((&student_username, topic_id))
             .first::<AssignmentRequest>(conn)
             .map_err(|_| ApiError::NotFound)?;
 
@@ -1269,13 +1265,13 @@ pub async fn update_assignment_status(
             .find(req_row.topic_id)
             .first::<Topic>(conn)
             .map_err(|_| ApiError::NotFound)?;
-        if topic.user_id != user_id {
+        if topic.teacher_user_name != username {
             return Err(ApiError::Forbidden);
         }
 
         if req.approved {
             let student = student::dsl::student
-                .find(student_id)
+                .find(&student_username)
                 .first::<Student>(conn)
                 .map_err(|_| ApiError::NotFound)?;
             if student.topic_id.is_some() {
@@ -1301,11 +1297,11 @@ pub async fn update_assignment_status(
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to assign topic")))?;
         }
 
-        diesel::delete(assignmentrequest::dsl::assignmentrequest.find((student_id, topic_id)))
-            .execute(conn)
-            .map_err(|_| {
-                ApiError::InternalServerError(str!("Failed to delete assignment request"))
-            })?;
+        diesel::delete(
+            assignmentrequest::dsl::assignmentrequest.find((&student_username, topic_id)),
+        )
+        .execute(conn)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to delete assignment request")))?;
 
         Ok::<_, ApiError>(())
     })?;
@@ -1324,8 +1320,8 @@ pub async fn get_progress_reports(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -1345,10 +1341,10 @@ pub async fn get_progress_reports(
 
     match user_role {
         AuthInfoUserRole::Student => {
-            base = base.filter(progressreport::columns::user_id.eq(user_id));
+            base = base.filter(progressreport::columns::student_user_name.eq(&username));
         }
         AuthInfoUserRole::Teacher => {
-            base = base.filter(topic::columns::user_id.eq(user_id));
+            base = base.filter(topic::columns::teacher_user_name.eq(&username));
         }
         _ => unreachable!(),
     }
@@ -1369,7 +1365,7 @@ pub async fn get_progress_reports(
             Ok::<_, ApiError>(ProgressReportDetailResponse {
                 prog_report_id: r.prog_report_id,
                 topic_id: r.topic_id,
-                student_id: r.user_id,
+                student_user_name: r.student_user_name,
                 student_name,
                 prog_report_type: ProgressReportType::try_from(r.prog_report_type).map_err(
                     |_| ApiError::InternalServerError(str!("Invalid progress report type")),
@@ -1399,13 +1395,8 @@ pub async fn create_progress_report(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
-    let user_role = get_session_user_role(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
-    if !matches!(user_role, AuthInfoUserRole::Student) {
-        return Err(ApiError::Forbidden);
-    }
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
 
     let mut conn = pool
         .get()
@@ -1413,7 +1404,7 @@ pub async fn create_progress_report(
 
     conn.build_transaction().read_write().run(|conn| {
         let student = student::dsl::student
-            .find(user_id)
+            .find(&username)
             .first::<Student>(conn)
             .map_err(|_| ApiError::NotFound)?;
         let topic_id = student
@@ -1423,7 +1414,7 @@ pub async fn create_progress_report(
         // Determine report type: proposal first, then midterm after proposal passed.
         let has_passed_proposal = diesel::select(diesel::dsl::exists(
             progressreport::dsl::progressreport
-                .filter(progressreport::columns::user_id.eq(user_id))
+                .filter(progressreport::columns::student_user_name.eq(&username))
                 .filter(
                     progressreport::columns::prog_report_type
                         .eq(ProgressReportType::Proposal as i16),
@@ -1444,7 +1435,7 @@ pub async fn create_progress_report(
         // Enforce: per (student, type) at most one pending and one passed.
         let has_pending = diesel::select(diesel::dsl::exists(
             progressreport::dsl::progressreport
-                .filter(progressreport::columns::user_id.eq(user_id))
+                .filter(progressreport::columns::student_user_name.eq(&username))
                 .filter(progressreport::columns::prog_report_type.eq(report_type as i16))
                 .filter(
                     progressreport::columns::prog_report_outcome
@@ -1459,7 +1450,7 @@ pub async fn create_progress_report(
 
         let has_passed = diesel::select(diesel::dsl::exists(
             progressreport::dsl::progressreport
-                .filter(progressreport::columns::user_id.eq(user_id))
+                .filter(progressreport::columns::student_user_name.eq(&username))
                 .filter(progressreport::columns::prog_report_type.eq(report_type as i16))
                 .filter(
                     progressreport::columns::prog_report_outcome.eq(ProgressOutcome::Passed as i16),
@@ -1474,7 +1465,7 @@ pub async fn create_progress_report(
         diesel::insert_into(progressreport::dsl::progressreport)
             .values(NewProgressReport {
                 topic_id,
-                user_id,
+                student_user_name: &username,
                 prog_report_type: report_type as i16,
                 prog_report_time: Utc::now(),
                 prog_report_attachment: &req.attachment,
@@ -1504,32 +1495,26 @@ pub async fn update_progress_report(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
-    let user_role = get_session_user_role(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
-    if !matches!(user_role, AuthInfoUserRole::Teacher) {
-        return Err(ApiError::Forbidden);
-    }
-
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let mut conn = pool
         .get()
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     let result = conn.build_transaction().read_write().run(|conn| {
-        let (report, student_name, teacher_id) = progressreport::table
+        let (report, student_name, teacher_username) = progressreport::table
             .inner_join(student::table)
             .inner_join(topic::table)
             .filter(progressreport::columns::prog_report_id.eq(*report_id))
             .select((
                 progressreport::all_columns,
                 student::columns::student_name,
-                topic::columns::user_id,
+                topic::columns::teacher_user_name,
             ))
-            .first::<(ProgressReport, String, i32)>(conn)
+            .first::<(ProgressReport, String, String)>(conn)
             .map_err(|_| ApiError::NotFound)?;
 
-        if teacher_id != user_id {
+        if teacher_username != username {
             return Err(ApiError::Forbidden);
         }
 
@@ -1538,7 +1523,10 @@ pub async fn update_progress_report(
             ProgressOutcome::NoConclusion => {
                 let other_pending = diesel::select(diesel::dsl::exists(
                     progressreport::dsl::progressreport
-                        .filter(progressreport::columns::user_id.eq(report.user_id))
+                        .filter(
+                            progressreport::columns::student_user_name
+                                .eq(&report.student_user_name),
+                        )
                         .filter(
                             progressreport::columns::prog_report_type.eq(report.prog_report_type),
                         )
@@ -1561,7 +1549,10 @@ pub async fn update_progress_report(
             ProgressOutcome::Passed => {
                 let other_passed = diesel::select(diesel::dsl::exists(
                     progressreport::dsl::progressreport
-                        .filter(progressreport::columns::user_id.eq(report.user_id))
+                        .filter(
+                            progressreport::columns::student_user_name
+                                .eq(&report.student_user_name),
+                        )
                         .filter(
                             progressreport::columns::prog_report_type.eq(report.prog_report_type),
                         )
@@ -1601,7 +1592,7 @@ pub async fn update_progress_report(
         let result = ProgressReportDetailResponse {
             prog_report_id: updated.prog_report_id,
             topic_id: updated.topic_id,
-            student_id: updated.user_id,
+            student_user_name: updated.student_user_name,
             student_name,
             prog_report_type: ProgressReportType::try_from(updated.prog_report_type)
                 .map_err(|_| ApiError::InternalServerError(str!("Invalid progress report type")))?,
@@ -1630,8 +1621,8 @@ pub async fn get_final_defenses(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -1651,13 +1642,13 @@ pub async fn get_final_defenses(
 
     match user_role {
         AuthInfoUserRole::Student => {
-            base = base.filter(finaldefense::columns::user_id.eq(user_id));
+            base = base.filter(finaldefense::columns::student_user_name.eq(&username));
         }
         AuthInfoUserRole::Teacher => {
-            base = base.filter(topic::columns::user_id.eq(user_id));
+            base = base.filter(topic::columns::teacher_user_name.eq(&username));
         }
         AuthInfoUserRole::DefenseBoard => {
-            base = base.filter(finaldefense::columns::def_user_id.eq(user_id));
+            base = base.filter(finaldefense::columns::def_board_user_name.eq(&username));
         }
         _ => unreachable!(),
     }
@@ -1682,9 +1673,9 @@ pub async fn get_final_defenses(
             final_def_id: d.final_def_id,
             topic_id: d.topic_id,
             topic_name,
-            student_id: d.user_id,
+            student_user_name: d.student_user_name,
             student_name,
-            defense_board_id: d.def_user_id,
+            def_board_user_name: d.def_board_user_name,
             final_def_time: d.final_def_time,
             final_def_attachment: d.final_def_attachment,
             final_def_outcome: d.final_def_outcome,
@@ -1708,13 +1699,8 @@ pub async fn create_final_defense(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
-    let user_role = get_session_user_role(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
-    if !matches!(user_role, AuthInfoUserRole::Student) {
-        return Err(ApiError::Forbidden);
-    }
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
 
     let mut conn = pool
         .get()
@@ -1722,7 +1708,7 @@ pub async fn create_final_defense(
 
     conn.build_transaction().read_write().run(|conn| {
         let student = student::dsl::student
-            .find(user_id)
+            .find(&username)
             .first::<Student>(conn)
             .map_err(|_| ApiError::NotFound)?;
         let topic_id = student
@@ -1732,7 +1718,7 @@ pub async fn create_final_defense(
         // Enforce: per student, at most one pending (NULL) and one passed (true).
         let has_pending = diesel::select(diesel::dsl::exists(
             finaldefense::dsl::finaldefense
-                .filter(finaldefense::columns::user_id.eq(user_id))
+                .filter(finaldefense::columns::student_user_name.eq(&username))
                 .filter(finaldefense::columns::final_def_outcome.is_null()),
         ))
         .get_result::<bool>(conn)
@@ -1745,7 +1731,7 @@ pub async fn create_final_defense(
 
         let has_passed = diesel::select(diesel::dsl::exists(
             finaldefense::dsl::finaldefense
-                .filter(finaldefense::columns::user_id.eq(user_id))
+                .filter(finaldefense::columns::student_user_name.eq(&username))
                 .filter(finaldefense::columns::final_def_outcome.eq(true)),
         ))
         .get_result::<bool>(conn)
@@ -1759,8 +1745,8 @@ pub async fn create_final_defense(
         diesel::insert_into(finaldefense::dsl::finaldefense)
             .values(NewFinalDefense {
                 topic_id,
-                user_id,
-                def_user_id: None,
+                student_user_name: &username,
+                def_board_user_name: None,
                 final_def_time: Utc::now(),
                 final_def_attachment: &req.attachment,
                 final_def_outcome: None,
@@ -1789,8 +1775,8 @@ pub async fn update_final_defense(
         return Err(ApiError::Unauthorized);
     }
 
-    let user_id = get_session_user_id(&session)
-        .map_err(|_| ApiError::InternalServerError(str!("Failed to get user ID from session")))?;
+    let username = get_session_username(&session)
+        .map_err(|_| ApiError::InternalServerError(str!("Failed to get username from session")))?;
     let user_role = get_session_user_role(&session)
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get user role from session")))?;
 
@@ -1802,11 +1788,11 @@ pub async fn update_final_defense(
         match (user_role, req.into_inner()) {
             (AuthInfoUserRole::Teacher, FinalDefensesRecordPatchRequest::Teacher(req)) => {
                 // Teacher reviews the request: reject -> delete; approve -> assign least-loaded defense group.
-                let (defense, student_name, topic_name, teacher_id): (
+                let (defense, student_name, topic_name, teacher_username): (
                     FinalDefense,
                     String,
                     String,
-                    i32,
+                    String,
                 ) = finaldefense::table
                     .inner_join(student::table)
                     .inner_join(topic::table)
@@ -1815,12 +1801,12 @@ pub async fn update_final_defense(
                         finaldefense::all_columns,
                         student::columns::student_name,
                         topic::columns::topic_name,
-                        topic::columns::user_id,
+                        topic::columns::teacher_user_name,
                     ))
                     .first(conn)
                     .map_err(|_| ApiError::NotFound)?;
 
-                if teacher_id != user_id {
+                if teacher_username != username {
                     return Err(ApiError::Forbidden);
                 }
 
@@ -1841,9 +1827,9 @@ pub async fn update_final_defense(
                         final_def_id: defense.final_def_id,
                         topic_id: defense.topic_id,
                         topic_name,
-                        student_id: defense.user_id,
+                        student_user_name: defense.student_user_name,
                         student_name,
-                        defense_board_id: defense.def_user_id,
+                        def_board_user_name: defense.def_board_user_name,
                         final_def_time: defense.final_def_time,
                         final_def_attachment: defense.final_def_attachment,
                         final_def_outcome: defense.final_def_outcome,
@@ -1852,7 +1838,7 @@ pub async fn update_final_defense(
                     });
                 }
 
-                if defense.def_user_id.is_some() {
+                if defense.def_board_user_name.is_some() {
                     return Err(ApiError::Conflict(str!("Final defense already assigned")));
                 }
 
@@ -1860,50 +1846,54 @@ pub async fn update_final_defense(
                 // (Pending task = assigned to a defense group AND final outcome is NULL.)
                 // We compute counts via GROUP BY, then pick the minimum in Rust to keep the Diesel types simple.
 
-                let defense_board_ids = defenseboard::dsl::defenseboard
-                    .select(defenseboard::columns::user_id)
-                    .order(defenseboard::columns::user_id.asc())
-                    .load::<i32>(conn)
+                let defense_board_usernames = defenseboard::dsl::defenseboard
+                    .select(defenseboard::columns::user_name)
+                    .order(defenseboard::columns::user_name.asc())
+                    .load::<String>(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to load defense boards"))
                     })?;
-                if defense_board_ids.is_empty() {
+                if defense_board_usernames.is_empty() {
                     return Err(ApiError::Conflict(str!("No defense board available")));
                 }
 
                 let pending_counts = finaldefense::dsl::finaldefense
                     .filter(finaldefense::columns::final_def_outcome.is_null())
-                    .filter(finaldefense::columns::def_user_id.is_not_null())
-                    .group_by(finaldefense::columns::def_user_id)
+                    .filter(finaldefense::columns::def_board_user_name.is_not_null())
+                    .group_by(finaldefense::columns::def_board_user_name)
                     .select((
-                        finaldefense::columns::def_user_id,
+                        finaldefense::columns::def_board_user_name,
                         diesel::dsl::count_star(),
                     ))
-                    .load::<(Option<i32>, i64)>(conn)
+                    .load::<(Option<String>, i64)>(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to count defense board tasks"))
                     })?;
 
-                let mut count_by_board: HashMap<i32, i64> = HashMap::new();
-                for (board_id, c) in pending_counts {
-                    if let Some(board_id) = board_id {
-                        count_by_board.insert(board_id, c);
+                let mut count_by_board: HashMap<String, i64> = HashMap::new();
+                for (board_username, c) in pending_counts {
+                    if let Some(board_username) = board_username {
+                        count_by_board.insert(board_username, c);
                     }
                 }
 
-                let mut assigned_defense_board_id = defense_board_ids[0];
-                let mut assigned_count =
-                    *count_by_board.get(&assigned_defense_board_id).unwrap_or(&0);
-                for board_id in defense_board_ids.into_iter().skip(1) {
-                    let c = *count_by_board.get(&board_id).unwrap_or(&0);
+                let mut assigned_defense_board_username = defense_board_usernames[0].clone();
+                let mut assigned_count = *count_by_board
+                    .get(&assigned_defense_board_username)
+                    .unwrap_or(&0);
+                for board_username in defense_board_usernames.into_iter().skip(1) {
+                    let c = *count_by_board.get(&board_username).unwrap_or(&0);
                     if c < assigned_count {
-                        assigned_defense_board_id = board_id;
+                        assigned_defense_board_username = board_username;
                         assigned_count = c;
                     }
                 }
 
                 diesel::update(finaldefense::dsl::finaldefense.find(defense.final_def_id))
-                    .set(finaldefense::columns::def_user_id.eq(Some(assigned_defense_board_id)))
+                    .set(
+                        finaldefense::columns::def_board_user_name
+                            .eq(Some(assigned_defense_board_username)),
+                    )
                     .execute(conn)
                     .map_err(|_| {
                         ApiError::InternalServerError(str!("Failed to assign defense board"))
@@ -1918,9 +1908,9 @@ pub async fn update_final_defense(
                     final_def_id: updated.final_def_id,
                     topic_id: updated.topic_id,
                     topic_name,
-                    student_id: updated.user_id,
+                    student_user_name: updated.student_user_name,
                     student_name,
-                    defense_board_id: updated.def_user_id,
+                    def_board_user_name: updated.def_board_user_name,
                     final_def_time: updated.final_def_time,
                     final_def_attachment: updated.final_def_attachment,
                     final_def_outcome: updated.final_def_outcome,
@@ -1945,7 +1935,7 @@ pub async fn update_final_defense(
                         .first(conn)
                         .map_err(|_| ApiError::NotFound)?;
 
-                if defense.def_user_id != Some(user_id) {
+                if defense.def_board_user_name != Some(username) {
                     return Err(ApiError::Forbidden);
                 }
 
@@ -1953,7 +1943,10 @@ pub async fn update_final_defense(
                 if req.outcome {
                     let other_passed = diesel::select(diesel::dsl::exists(
                         finaldefense::dsl::finaldefense
-                            .filter(finaldefense::columns::user_id.eq(defense.user_id))
+                            .filter(
+                                finaldefense::columns::student_user_name
+                                    .eq(&defense.student_user_name),
+                            )
                             .filter(finaldefense::columns::final_def_outcome.eq(true))
                             .filter(finaldefense::columns::final_def_id.ne(defense.final_def_id)),
                     ))
@@ -1988,9 +1981,9 @@ pub async fn update_final_defense(
                     final_def_id: updated.final_def_id,
                     topic_id: updated.topic_id,
                     topic_name,
-                    student_id: updated.user_id,
+                    student_user_name: updated.student_user_name,
                     student_name,
-                    defense_board_id: updated.def_user_id,
+                    def_board_user_name: updated.def_board_user_name,
                     final_def_time: updated.final_def_time,
                     final_def_attachment: updated.final_def_attachment,
                     final_def_outcome: updated.final_def_outcome,

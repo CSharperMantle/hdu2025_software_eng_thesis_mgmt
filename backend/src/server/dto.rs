@@ -139,7 +139,6 @@ pub struct LoginRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserGetResponse {
-    pub id: i32,
     pub username: String,
     pub role: UserRole,
     pub name: Option<String>,
@@ -179,7 +178,7 @@ pub struct TopicDetails {
     pub topic_id: i32,
     pub major_id: i32,
     pub major_name: String,
-    pub teacher_id: i32,
+    pub teacher_user_name: String,
     pub teacher_name: String,
     pub topic_name: String,
     pub topic_description: String,
@@ -222,7 +221,7 @@ pub struct TopicCreateResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Assignment {
-    pub student_id: i32,
+    pub student_user_name: String,
     pub student_name: String,
     pub student_major: String,
     pub topic_id: i32,
@@ -253,7 +252,7 @@ pub struct AssignmentRecordPatchRequest {
 pub struct ProgressReportDetailResponse {
     pub prog_report_id: i32,
     pub topic_id: i32,
-    pub student_id: i32,
+    pub student_user_name: String,
     pub student_name: String,
     pub prog_report_type: ProgressReportType,
     pub prog_report_time: DateTime<Utc>,
@@ -285,9 +284,9 @@ pub struct FinalDefenseDetails {
     pub final_def_id: i32,
     pub topic_id: i32,
     pub topic_name: String,
-    pub student_id: i32,
+    pub student_user_name: String,
     pub student_name: String,
-    pub defense_board_id: Option<i32>,
+    pub def_board_user_name: Option<String>,
     pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: String,
     pub final_def_outcome: Option<bool>,
@@ -401,12 +400,10 @@ pub enum AuthInfoUserRole {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthInfo {
     SysAdmin {
-        user_id: i32,
         username: String,
-        impersonating: Option<i32>,
+        impersonating: Option<String>,
     },
     User {
-        user_id: i32,
         username: String,
         role: AuthInfoUserRole,
     },

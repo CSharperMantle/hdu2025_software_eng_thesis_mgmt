@@ -4,11 +4,10 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Identifiable, Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
-#[diesel(primary_key(user_id))]
+#[diesel(primary_key(user_name))]
 #[diesel(table_name = crate::schema::sysuser)]
 pub struct SysUser {
-    pub user_id: i32,
-    pub user_login: String,
+    pub user_name: String,
     pub user_password_hash: Vec<u8>,
     pub user_password_salt: Vec<u8>,
     pub user_avatar: Option<String>,
@@ -41,11 +40,11 @@ pub struct Major {
     Serialize,
     Deserialize,
 )]
-#[diesel(primary_key(user_id))]
-#[diesel(belongs_to(SysUser, foreign_key = user_id))]
+#[diesel(primary_key(user_name))]
+#[diesel(belongs_to(SysUser, foreign_key = user_name))]
 #[diesel(table_name = crate::schema::teacher)]
 pub struct Teacher {
-    pub user_id: i32,
+    pub user_name: String,
     pub teacher_name: String,
 }
 
@@ -60,11 +59,11 @@ pub struct Teacher {
     Serialize,
     Deserialize,
 )]
-#[diesel(primary_key(user_id))]
-#[diesel(belongs_to(SysUser, foreign_key = user_id))]
+#[diesel(primary_key(user_name))]
+#[diesel(belongs_to(SysUser, foreign_key = user_name))]
 #[diesel(table_name = crate::schema::sysadmin)]
 pub struct SysAdmin {
-    pub user_id: i32,
+    pub user_name: String,
 }
 
 #[derive(
@@ -78,11 +77,11 @@ pub struct SysAdmin {
     Serialize,
     Deserialize,
 )]
-#[diesel(primary_key(user_id))]
-#[diesel(belongs_to(SysUser, foreign_key = user_id))]
+#[diesel(primary_key(user_name))]
+#[diesel(belongs_to(SysUser, foreign_key = user_name))]
 #[diesel(table_name = crate::schema::office)]
 pub struct Office {
-    pub user_id: i32,
+    pub user_name: String,
 }
 
 #[derive(
@@ -96,11 +95,11 @@ pub struct Office {
     Serialize,
     Deserialize,
 )]
-#[diesel(primary_key(user_id))]
-#[diesel(belongs_to(SysUser, foreign_key = user_id))]
+#[diesel(primary_key(user_name))]
+#[diesel(belongs_to(SysUser, foreign_key = user_name))]
 #[diesel(table_name = crate::schema::defenseboard)]
 pub struct DefenseBoard {
-    pub user_id: i32,
+    pub user_name: String,
 }
 
 #[derive(
@@ -116,12 +115,12 @@ pub struct DefenseBoard {
 )]
 #[diesel(primary_key(topic_id))]
 #[diesel(belongs_to(Major, foreign_key = major_id))]
-#[diesel(belongs_to(Teacher, foreign_key = user_id))]
+#[diesel(belongs_to(Teacher, foreign_key = teacher_user_name))]
 #[diesel(table_name = crate::schema::topic)]
 pub struct Topic {
     pub topic_id: i32,
     pub major_id: i32,
-    pub user_id: i32,
+    pub teacher_user_name: String,
     pub topic_name: String,
     pub topic_description: String,
     pub topic_max_students: i32,
@@ -150,17 +149,17 @@ pub struct TopicChangeset {
     Serialize,
     Deserialize,
 )]
-#[diesel(primary_key(user_id))]
-#[diesel(belongs_to(SysUser, foreign_key = user_id))]
+#[diesel(primary_key(user_name))]
+#[diesel(belongs_to(SysUser, foreign_key = user_name))]
 #[diesel(belongs_to(Major, foreign_key = major_id))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
 #[diesel(table_name = crate::schema::student)]
 pub struct Student {
-    pub user_id: i32,
+    pub user_name: String,
     pub topic_id: Option<i32>,
     pub major_id: i32,
     pub student_name: String,
-    pub assn_time: Option<DateTime<Utc>>,
+    pub assn_time: DateTime<Utc>,
 }
 
 #[derive(AsChangeset, Debug, Clone)]
@@ -181,12 +180,12 @@ pub struct StudentAssignmentChangeset {
     Serialize,
     Deserialize,
 )]
-#[diesel(primary_key(user_id, topic_id))]
-#[diesel(belongs_to(Student, foreign_key = user_id))]
+#[diesel(primary_key(student_user_name, topic_id))]
+#[diesel(belongs_to(Student, foreign_key = student_user_name))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
 #[diesel(table_name = crate::schema::assignmentrequest)]
 pub struct AssignmentRequest {
-    pub user_id: i32,
+    pub student_user_name: String,
     pub topic_id: i32,
     pub assn_req_time: DateTime<Utc>,
 }
@@ -203,13 +202,13 @@ pub struct AssignmentRequest {
     Deserialize,
 )]
 #[diesel(primary_key(prog_report_id))]
-#[diesel(belongs_to(Student, foreign_key = user_id))]
+#[diesel(belongs_to(Student, foreign_key = student_user_name))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
 #[diesel(table_name = crate::schema::progressreport)]
 pub struct ProgressReport {
     pub prog_report_id: i32,
     pub topic_id: i32,
-    pub user_id: i32,
+    pub student_user_name: String,
     pub prog_report_type: i16,
     pub prog_report_time: DateTime<Utc>,
     pub prog_report_attachment: String,
@@ -230,15 +229,15 @@ pub struct ProgressReport {
     Deserialize,
 )]
 #[diesel(primary_key(final_def_id))]
-#[diesel(belongs_to(Student, foreign_key = user_id))]
+#[diesel(belongs_to(Student, foreign_key = student_user_name))]
 #[diesel(belongs_to(Topic, foreign_key = topic_id))]
-#[diesel(belongs_to(DefenseBoard, foreign_key = def_user_id))]
+#[diesel(belongs_to(DefenseBoard, foreign_key = def_board_user_name))]
 #[diesel(table_name = crate::schema::finaldefense)]
 pub struct FinalDefense {
     pub final_def_id: i32,
     pub topic_id: i32,
-    pub user_id: i32,
-    pub def_user_id: Option<i32>,
+    pub student_user_name: String,
+    pub def_board_user_name: Option<String>,
     pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: String,
     pub final_def_outcome: Option<bool>,
@@ -251,7 +250,7 @@ pub struct FinalDefense {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::sysuser)]
 pub struct NewSysUser<'a> {
-    pub user_login: &'a str,
+    pub user_name: &'a str,
     pub user_password_hash: &'a [u8],
     pub user_password_salt: &'a [u8],
     pub user_avatar: Option<&'a str>,
@@ -266,33 +265,33 @@ pub struct NewMajor<'a> {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::teacher)]
 pub struct NewTeacher<'a> {
-    pub user_id: i32,
+    pub user_name: &'a str,
     pub teacher_name: &'a str,
 }
 
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::sysadmin)]
-pub struct NewSysAdmin {
-    pub user_id: i32,
+pub struct NewSysAdmin<'a> {
+    pub user_name: &'a str,
 }
 
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::office)]
-pub struct NewOffice {
-    pub user_id: i32,
+pub struct NewOffice<'a> {
+    pub user_name: &'a str,
 }
 
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::defenseboard)]
-pub struct NewDefenseBoard {
-    pub user_id: i32,
+pub struct NewDefenseBoard<'a> {
+    pub user_name: &'a str,
 }
 
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::topic)]
 pub struct NewTopic<'a> {
     pub major_id: i32,
-    pub user_id: i32,
+    pub teacher_user_name: &'a str,
     pub topic_name: &'a str,
     pub topic_description: &'a str,
     pub topic_max_students: i32,
@@ -303,17 +302,17 @@ pub struct NewTopic<'a> {
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::student)]
 pub struct NewStudent<'a> {
-    pub user_id: i32,
+    pub user_name: &'a str,
     pub topic_id: Option<i32>,
     pub major_id: i32,
     pub student_name: &'a str,
-    pub assn_time: Option<DateTime<Utc>>,
+    pub assn_time: DateTime<Utc>,
 }
 
 #[derive(Insertable, Debug)]
 #[diesel(table_name = crate::schema::assignmentrequest)]
-pub struct NewAssignmentRequest {
-    pub user_id: i32,
+pub struct NewAssignmentRequest<'a> {
+    pub student_user_name: &'a str,
     pub topic_id: i32,
     pub assn_req_time: DateTime<Utc>,
 }
@@ -322,7 +321,7 @@ pub struct NewAssignmentRequest {
 #[diesel(table_name = crate::schema::progressreport)]
 pub struct NewProgressReport<'a> {
     pub topic_id: i32,
-    pub user_id: i32,
+    pub student_user_name: &'a str,
     pub prog_report_type: i16,
     pub prog_report_time: DateTime<Utc>,
     pub prog_report_attachment: &'a str,
@@ -335,8 +334,8 @@ pub struct NewProgressReport<'a> {
 #[diesel(table_name = crate::schema::finaldefense)]
 pub struct NewFinalDefense<'a> {
     pub topic_id: i32,
-    pub user_id: i32,
-    pub def_user_id: Option<i32>,
+    pub student_user_name: &'a str,
+    pub def_board_user_name: Option<&'a str>,
     pub final_def_time: DateTime<Utc>,
     pub final_def_attachment: &'a str,
     pub final_def_outcome: Option<bool>,

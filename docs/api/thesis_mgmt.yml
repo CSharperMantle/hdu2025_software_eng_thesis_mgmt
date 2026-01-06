@@ -433,7 +433,7 @@ paths:
         "403":
           description: 权限不足
 
-  /assignments/{student_id}/{topic_id}:
+  /assignments/{student_user_name}/{topic_id}:
     patch:
       tags:
         - assignment
@@ -447,12 +447,12 @@ paths:
 
         * `teacher`
       parameters:
-        - name: student_id
-          description: 学生序号
+        - name: student_user_name
+          description: 学生用户名
           in: path
           required: true
           schema:
-            type: integer
+            type: string
         - name: topic_id
           description: 课题序号
           in: path
@@ -768,10 +768,10 @@ components:
           type: string
           description: 专业名称
           example: "软件工程"
-        teacher_id:
-          type: integer
-          description: 指导教师序号
-          example: 5
+        teacher_user_name:
+          type: string
+          description: 指导教师用户名
+          example: "10001"
         teacher_name:
           type: string
           description: 指导教师姓名
@@ -830,9 +830,9 @@ components:
     Assignment:
       type: object
       properties:
-        student_id:
-          type: integer
-          description: 学生序号
+        student_user_name:
+          type: string
+          description: 学生用户名
         student_name:
           type: string
           description: 学生姓名
@@ -873,10 +873,6 @@ components:
     UserGetResponse:
       type: object
       properties:
-        id:
-          type: integer
-          description: 用户序号
-          example: 1
         username:
           type: string
           description: 用户登录名
@@ -900,7 +896,6 @@ components:
           description: 用户头像 Data URI
           example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAAFiUAABYlAUlSJPAAAAAWSURBVBhXY/j///9/BgYGEGYAsf8DAFa7Cfdf9HzVAAAAAElFTkSuQmCC"
       required:
-        - id
         - username
         - role
     UserPatchRequest:
@@ -1100,9 +1095,9 @@ components:
         topic_id:
           type: integer
           description: 课题序号
-        student_id:
-          type: integer
-          description: 学生序号
+        student_user_name:
+          type: string
+          description: 学生用户名
         student_name:
           type: string
           description: 学生姓名
@@ -1166,15 +1161,15 @@ components:
         topic_name:
           type: string
           description: 课题名称
-        student_id:
-          type: integer
-          description: 学生编号
+        student_user_name:
+          type: string
+          description: 学生用户名
         student_name:
           type: string
           description: 学生姓名
-        defense_board_id:
-          type: integer
-          description: 答辩组编号
+        def_board_user_name:
+          type: string
+          description: 答辩组用户名
         final_def_time:
           type: string
           format: date-time
@@ -1197,7 +1192,7 @@ components:
         - final_def_id
         - topic_id
         - topic_name
-        - student_id
+        - student_user_name
         - student_name
         - final_def_time
         - final_def_attachment
