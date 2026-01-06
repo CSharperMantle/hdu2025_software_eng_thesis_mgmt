@@ -10,8 +10,8 @@
     <v-expansion-panels v-model="expandedPanel">
       <v-expansion-panel
         v-for="report in groupedReports"
-        :key="report.student_id"
-        :value="report.student_id"
+        :key="report.student_user_name"
+        :value="report.student_user_name"
       >
         <v-expansion-panel-title>
           <div class="d-flex align-center justify-space-between w-100 pr-4">
@@ -308,7 +308,7 @@ const outcomeOptions = [
 const apiClient = createApiClient(API_BASE_URL)
 
 interface GroupedReport {
-  student_id: number
+  student_user_name: string
   student_name: string
   topic_id: number
   topic_name: string
@@ -346,19 +346,19 @@ async function loadFinalDefenses() {
 }
 
 async function groupReports() {
-  const grouped = new Map<number, GroupedReport>()
+  const grouped = new Map<string, GroupedReport>()
 
   // Group progress reports - keep only the most recent report of each type per student
   const reportsByStudent = new Map<
-    number,
+    string,
     { initial: ProgressReportDetailResponse[]; midterm: ProgressReportDetailResponse[] }
   >()
 
   for (const report of progressReports.value) {
-    if (!reportsByStudent.has(report.student_id)) {
-      reportsByStudent.set(report.student_id, { initial: [], midterm: [] })
+    if (!reportsByStudent.has(report.student_user_name)) {
+      reportsByStudent.set(report.student_user_name, { initial: [], midterm: [] })
     }
-    const studentReports = reportsByStudent.get(report.student_id)!
+    const studentReports = reportsByStudent.get(report.student_user_name)!
     if (report.prog_report_type === 0) {
       studentReports.initial.push(report)
     } else {
@@ -367,7 +367,7 @@ async function groupReports() {
   }
 
   // Create grouped reports with most recent reports
-  for (const [studentId, reports] of reportsByStudent.entries()) {
+  for (const [studentUserName, reports] of reportsByStudent.entries()) {
     const latestInitial =
       reports.initial.length > 0
         ? reports.initial.sort(
@@ -385,8 +385,8 @@ async function groupReports() {
 
     if (latestInitial || latestMidterm) {
       const report = latestInitial || latestMidterm!
-      grouped.set(studentId, {
-        student_id: studentId,
+      grouped.set(studentUserName, {
+        student_user_name: studentUserName,
         student_name: report.student_name,
         topic_id: report.topic_id,
         topic_name: '',
@@ -398,15 +398,15 @@ async function groupReports() {
 
   // Add final defenses and update topic names
   for (const defense of finalDefenses.value) {
-    if (!grouped.has(defense.student_id)) {
-      grouped.set(defense.student_id, {
-        student_id: defense.student_id,
+    if (!grouped.has(defense.student_user_name)) {
+      grouped.set(defense.student_user_name, {
+        student_user_name: defense.student_user_name,
         student_name: defense.student_name,
         topic_id: defense.topic_id,
         topic_name: defense.topic_name,
       })
     }
-    const group = grouped.get(defense.student_id)!
+    const group = grouped.get(defense.student_user_name)!
     group.topic_name = defense.topic_name
     group.defense = defense
   }

@@ -19,7 +19,6 @@ export interface LoginRequest {
 }
 
 export interface UserGetResponse {
-  id: number
   username: string
   role: UserRole
   name?: string
@@ -56,7 +55,7 @@ export interface TopicDetails {
   topic_id: number
   major_id: number
   major_name: string
-  teacher_id: number
+  teacher_user_name: string
   teacher_name: string
   topic_name: string
   topic_description: string
@@ -106,7 +105,7 @@ export interface TopicCreateResponse {
 
 // Assignment models
 export interface Assignment {
-  student_id: number
+  student_user_name: string
   student_name: string
   student_major: string
   topic_id: number
@@ -134,7 +133,7 @@ export interface AssignmentRecordPatchRequest {
 export interface ProgressReportDetailResponse {
   prog_report_id: number
   topic_id: number
-  student_id: number
+  student_user_name: string
   student_name: string
   prog_report_type: ProgressReportType
   prog_report_time: string
@@ -163,9 +162,9 @@ export interface FinalDefenseDetails {
   final_def_id: number
   topic_id: number
   topic_name: string
-  student_id: number
+  student_user_name: string
   student_name: string
-  defense_board_id?: number
+  def_board_user_name?: string
   final_def_time: string
   final_def_attachment: string
   final_def_outcome?: boolean

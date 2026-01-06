@@ -18,10 +18,10 @@ export class AssignmentService {
   }
 
   async updateAssignmentStatus(
-    studentId: number,
+    studentUserName: string,
     topicId: number,
     data: AssignmentRecordPatchRequest,
   ): Promise<void> {
-    await this.http.patch(`/assignments/${studentId}/${topicId}`, data)
+    await this.http.patch(`/assignments/${studentUserName}/${topicId}`, data)
   }
 }

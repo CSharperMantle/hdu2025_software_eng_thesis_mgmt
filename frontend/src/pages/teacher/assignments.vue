@@ -15,7 +15,7 @@
           v-model:items-per-page="itemsPerPage"
           v-model:page="page"
           :headers="headers"
-          item-value="student_id"
+          item-value="student_user_name"
           :items="assignments"
           :items-length="totalItems"
           :items-per-page-options="[5, 10, 15, 20]"
@@ -39,14 +39,14 @@
                 icon="mdi-check"
                 size="small"
                 variant="text"
-                @click="approveAssignment(item.student_id, item.topic_id, true)"
+                @click="approveAssignment(item.student_user_name, item.topic_id, true)"
               />
               <v-btn
                 color="error"
                 icon="mdi-close"
                 size="small"
                 variant="text"
-                @click="approveAssignment(item.student_id, item.topic_id, false)"
+                @click="approveAssignment(item.student_user_name, item.topic_id, false)"
               />
             </div>
             <span v-else class="text-grey">-</span>
@@ -83,7 +83,7 @@ const snackbar = ref({
 
 const headers = [
   { title: '学生姓名', key: 'student_name', sortable: false },
-  { title: '学号', key: 'student_id', sortable: false },
+  { title: '学号', key: 'student_user_name', sortable: false },
   { title: '专业', key: 'student_major', sortable: false },
   { title: '课题名称', key: 'topic_name', sortable: false },
   { title: '申请时间', key: 'request_time', sortable: false },
@@ -142,9 +142,9 @@ function getAssignmentStatusColor(status: number): string {
   return colors[status as 0 | 1 | 2] || 'default'
 }
 
-async function approveAssignment(studentId: number, topicId: number, approved: boolean) {
+async function approveAssignment(studentUserName: string, topicId: number, approved: boolean) {
   try {
-    await apiClient.assignments.updateAssignmentStatus(studentId, topicId, { approved })
+    await apiClient.assignments.updateAssignmentStatus(studentUserName, topicId, { approved })
     snackbar.value = {
       show: true,
       message: approved ? '已批准选题申请' : '已拒绝选题申请',
