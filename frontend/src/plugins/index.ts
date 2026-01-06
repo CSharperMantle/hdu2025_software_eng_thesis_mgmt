@@ -11,8 +11,6 @@ import router from '../router'
 // Plugins
 import vuetify from './vuetify'
 
-export function registerPlugins (app: App) {
-  app
-    .use(vuetify)
-    .use(router)
+export function registerPlugins(app: App) {
+  app.use(vuetify).use(router)
 }

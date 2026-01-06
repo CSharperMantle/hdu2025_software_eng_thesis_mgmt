@@ -12,11 +12,7 @@
 
       <v-card-text>
         <div class="d-flex justify-end mb-4">
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-plus"
-            @click="openCreateDialog"
-          >
+          <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
             创建课题
           </v-btn>
         </div>
@@ -87,14 +83,14 @@
             item-value="id"
             :items="majors"
             label="专业"
-            :rules="[v => !!v || '请选择专业']"
+            :rules="[(v) => !!v || '请选择专业']"
             variant="outlined"
           />
 
           <v-text-field
             v-model="newTopic.topic_name"
             label="课题名称"
-            :rules="[v => !!v || '请输入课题名称']"
+            :rules="[(v) => !!v || '请输入课题名称']"
             variant="outlined"
           />
 
@@ -102,14 +98,14 @@
             v-model="newTopic.topic_description"
             label="课题描述"
             rows="5"
-            :rules="[v => !!v || '请输入课题描述']"
+            :rules="[(v) => !!v || '请输入课题描述']"
             variant="outlined"
           />
 
           <v-text-field
             v-model.number="newTopic.topic_max_students"
             label="最大学生数"
-            :rules="[v => v > 0 || '最大学生数必须大于0']"
+            :rules="[(v) => v > 0 || '最大学生数必须大于0']"
             type="number"
             variant="outlined"
           />
@@ -120,7 +116,7 @@
             item-value="value"
             :items="TOPIC_TYPES"
             label="课题类型"
-            :rules="[v => v !== null && v !== undefined || '请选择课题类型']"
+            :rules="[(v) => (v !== null && v !== undefined) || '请选择课题类型']"
             variant="outlined"
           />
         </v-form>
@@ -128,12 +124,8 @@
 
       <v-card-actions>
         <v-spacer />
-        <v-btn color="grey" variant="text" @click="createDialogVisible = false">
-          取消
-        </v-btn>
-        <v-btn color="primary" @click="createTopic">
-          创建
-        </v-btn>
+        <v-btn color="grey" variant="text" @click="createDialogVisible = false"> 取消 </v-btn>
+        <v-btn color="primary" @click="createTopic"> 创建 </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -152,7 +144,7 @@
               <v-text-field
                 v-model="editForm.topic_name"
                 label="课题名称"
-                :rules="[v => !!v || '请输入课题名称']"
+                :rules="[(v) => !!v || '请输入课题名称']"
                 variant="outlined"
               />
             </v-col>
@@ -173,14 +165,17 @@
                 item-value="value"
                 :items="TOPIC_TYPES"
                 label="课题类型"
-                :rules="[v => v !== null && v !== undefined || '请选择课题类型']"
+                :rules="[(v) => (v !== null && v !== undefined) || '请选择课题类型']"
                 variant="outlined"
               />
             </v-col>
 
             <v-col cols="12" md="6">
               <div class="text-subtitle-2 text-grey mb-2">审核状态</div>
-              <v-chip :color="getTopicReviewStatusColor(selectedTopic.topic_review_status)" size="small">
+              <v-chip
+                :color="getTopicReviewStatusColor(selectedTopic.topic_review_status)"
+                size="small"
+              >
                 {{ getTopicReviewStatusName(selectedTopic.topic_review_status) }}
               </v-chip>
             </v-col>
@@ -189,7 +184,7 @@
               <v-text-field
                 v-model.number="editForm.topic_max_students"
                 label="最大学生数"
-                :rules="[v => v > 0 || '最大学生数必须大于0']"
+                :rules="[(v) => v > 0 || '最大学生数必须大于0']"
                 type="number"
                 variant="outlined"
               />
@@ -197,7 +192,9 @@
 
             <v-col cols="12">
               <div class="text-subtitle-2 text-grey mb-2">当前选择人数</div>
-              <div class="text-body-1">{{ selectedTopic.current_student_count }} / {{ selectedTopic.topic_max_students }}</div>
+              <div class="text-body-1">
+                {{ selectedTopic.current_student_count }} / {{ selectedTopic.topic_max_students }}
+              </div>
             </v-col>
 
             <v-col cols="12">
@@ -205,7 +202,7 @@
                 v-model="editForm.topic_description"
                 label="课题描述"
                 rows="5"
-                :rules="[v => !!v || '请输入课题描述']"
+                :rules="[(v) => !!v || '请输入课题描述']"
                 variant="outlined"
               />
             </v-col>
@@ -215,205 +212,199 @@
 
       <v-card-actions>
         <v-spacer />
-        <v-btn color="grey" variant="text" @click="editDialogVisible = false">
-          取消
-        </v-btn>
-        <v-btn color="primary" @click="saveChanges">
-          保存
-        </v-btn>
+        <v-btn color="grey" variant="text" @click="editDialogVisible = false"> 取消 </v-btn>
+        <v-btn color="primary" @click="saveChanges"> 保存 </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 </template>
 
 <script lang="ts" setup>
-  import type { TopicBrief, TopicDetails, TopicsPostRequest, UserGetResponse } from '@/api'
-  import { onMounted, ref } from 'vue'
-  import {
-    createApiClient,
-    getErrorMessage,
-    getTopicReviewStatusColor,
-    getTopicReviewStatusName,
-    getTopicTypeName,
-    TOPIC_TYPES,
-  } from '@/api'
-  import { API_BASE_URL } from '@/config'
+import type { TopicBrief, TopicDetails, TopicsPostRequest, UserGetResponse } from '@/api'
+import { onMounted, ref } from 'vue'
+import {
+  createApiClient,
+  getErrorMessage,
+  getTopicReviewStatusColor,
+  getTopicReviewStatusName,
+  getTopicTypeName,
+  TOPIC_TYPES,
+} from '@/api'
+import { API_BASE_URL } from '@/config'
 
-  const currentPart = 0
-  const userInfo = ref<UserGetResponse | null>(null)
-  const topics = ref<TopicBrief[]>([])
-  const loading = ref(false)
-  const page = ref(1)
-  const itemsPerPage = ref(20)
-  const totalItems = ref(0)
-  const search = ref('')
-  const formRef = ref<any>(null)
-  const createDialogVisible = ref(false)
-  const editDialogVisible = ref(false)
-  const selectedTopic = ref<TopicDetails | null>(null)
-  const editFormRef = ref<any>(null)
-  const editForm = ref({
-    topic_name: '',
-    topic_description: '',
-    topic_max_students: 1,
-    topic_type: null as any,
-  })
+const currentPart = 0
+const userInfo = ref<UserGetResponse | null>(null)
+const topics = ref<TopicBrief[]>([])
+const loading = ref(false)
+const page = ref(1)
+const itemsPerPage = ref(20)
+const totalItems = ref(0)
+const search = ref('')
+const formRef = ref<any>(null)
+const createDialogVisible = ref(false)
+const editDialogVisible = ref(false)
+const selectedTopic = ref<TopicDetails | null>(null)
+const editFormRef = ref<any>(null)
+const editForm = ref({
+  topic_name: '',
+  topic_description: '',
+  topic_max_students: 1,
+  topic_type: null as any,
+})
 
-  const newTopic = ref<TopicsPostRequest>({
-    major_id: null as any,
-    topic_name: '',
-    topic_description: '',
-    topic_max_students: 1,
-    topic_type: null as any,
-  })
+const newTopic = ref<TopicsPostRequest>({
+  major_id: null as any,
+  topic_name: '',
+  topic_description: '',
+  topic_max_students: 1,
+  topic_type: null as any,
+})
 
-  const majors = [
-    { id: 1, name: '计算机科学与技术' },
-    { id: 2, name: '软件工程' },
-    { id: 3, name: '人工智能' },
-  ]
+const majors = [
+  { id: 1, name: '计算机科学与技术' },
+  { id: 2, name: '软件工程' },
+  { id: 3, name: '人工智能' },
+]
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+const snackbar = ref({
+  show: false,
+  message: '',
+  color: 'success',
+})
 
-  const headers = [
-    { title: '课题名称', key: 'topic_name', sortable: false },
-    { title: '课题类型', key: 'topic_type', sortable: false },
-    { title: '审核状态', key: 'topic_review_status', sortable: false },
-    { title: '名额', key: 'availability', sortable: false },
-    { title: '操作', key: 'actions', sortable: false },
-  ]
+const headers = [
+  { title: '课题名称', key: 'topic_name', sortable: false },
+  { title: '课题类型', key: 'topic_type', sortable: false },
+  { title: '审核状态', key: 'topic_review_status', sortable: false },
+  { title: '名额', key: 'availability', sortable: false },
+  { title: '操作', key: 'actions', sortable: false },
+]
 
-  const apiClient = createApiClient(API_BASE_URL)
+const apiClient = createApiClient(API_BASE_URL)
 
-  async function fetchUserInfo () {
-    try {
-      userInfo.value = await apiClient.auth.getCurrentUser()
-    } catch (error) {
-      console.error('Failed to fetch user info:', error)
+async function fetchUserInfo() {
+  try {
+    userInfo.value = await apiClient.auth.getCurrentUser()
+  } catch (error) {
+    console.error('Failed to fetch user info:', error)
+  }
+}
+
+async function loadTopics() {
+  loading.value = true
+  try {
+    const params = {
+      page: page.value,
+      page_size: itemsPerPage.value,
+    }
+
+    const response = search.value
+      ? await apiClient.topics.searchTopics(search.value, params)
+      : await apiClient.topics.getTopics(params)
+
+    topics.value = response.topics
+    totalItems.value = response.total
+  } catch (error: any) {
+    console.error('Failed to load topics:', error)
+    snackbar.value = {
+      show: true,
+      message: '加载课题列表失败',
+      color: 'error',
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function onSearchChange() {
+  page.value = 1
+  loadTopics()
+}
+
+function openCreateDialog() {
+  createDialogVisible.value = true
+}
+
+async function createTopic() {
+  const { valid } = await formRef.value.validate()
+  if (!valid) return
+
+  try {
+    await apiClient.topics.createTopic(newTopic.value)
+    snackbar.value = {
+      show: true,
+      message: '课题创建成功，等待审核',
+      color: 'success',
+    }
+
+    // Reset form
+    newTopic.value = {
+      major_id: null as any,
+      topic_name: '',
+      topic_description: '',
+      topic_max_students: 1,
+      topic_type: null as any,
+    }
+    formRef.value.reset()
+    createDialogVisible.value = false
+
+    // Reload topics
+    await loadTopics()
+  } catch (error: any) {
+    console.error('Failed to create topic:', error)
+    snackbar.value = {
+      show: true,
+      message: getErrorMessage('topic', error.statusCode),
+      color: 'error',
     }
   }
+}
 
-  async function loadTopics () {
-    loading.value = true
-    try {
-      const params = {
-        page: page.value,
-        page_size: itemsPerPage.value,
-      }
-
-      const response = search.value
-        ? await apiClient.topics.searchTopics(search.value, params)
-        : await apiClient.topics.getTopics(params)
-
-      topics.value = response.topics
-      totalItems.value = response.total
-    } catch (error: any) {
-      console.error('Failed to load topics:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题列表失败',
-        color: 'error',
-      }
-    } finally {
-      loading.value = false
+async function viewTopic(topicId: number) {
+  try {
+    selectedTopic.value = await apiClient.topics.getTopicById(topicId)
+    editForm.value = {
+      topic_name: selectedTopic.value.topic_name,
+      topic_description: selectedTopic.value.topic_description,
+      topic_max_students: selectedTopic.value.topic_max_students,
+      topic_type: selectedTopic.value.topic_type,
+    }
+    editDialogVisible.value = true
+  } catch (error: any) {
+    console.error('Failed to load topic details:', error)
+    snackbar.value = {
+      show: true,
+      message: '加载课题详情失败',
+      color: 'error',
     }
   }
+}
 
-  function onSearchChange () {
-    page.value = 1
-    loadTopics()
-  }
+async function saveChanges() {
+  const { valid } = await editFormRef.value.validate()
+  if (!valid) return
 
-  function openCreateDialog () {
-    createDialogVisible.value = true
-  }
-
-  async function createTopic () {
-    const { valid } = await formRef.value.validate()
-    if (!valid)
-      return
-
-    try {
-      await apiClient.topics.createTopic(newTopic.value)
-      snackbar.value = {
-        show: true,
-        message: '课题创建成功，等待审核',
-        color: 'success',
-      }
-
-      // Reset form
-      newTopic.value = {
-        major_id: null as any,
-        topic_name: '',
-        topic_description: '',
-        topic_max_students: 1,
-        topic_type: null as any,
-      }
-      formRef.value.reset()
-      createDialogVisible.value = false
-
-      // Reload topics
-      await loadTopics()
-    } catch (error: any) {
-      console.error('Failed to create topic:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('topic', error.statusCode),
-        color: 'error',
-      }
+  try {
+    await apiClient.topics.updateTopicAsTeacher(selectedTopic.value!.topic_id, editForm.value)
+    snackbar.value = {
+      show: true,
+      message: '课题更新成功，等待重新审核',
+      color: 'success',
+    }
+    editDialogVisible.value = false
+    // Reload topics
+    await loadTopics()
+  } catch (error: any) {
+    console.error('Failed to update topic:', error)
+    snackbar.value = {
+      show: true,
+      message: getErrorMessage('topic', error.statusCode),
+      color: 'error',
     }
   }
+}
 
-  async function viewTopic (topicId: number) {
-    try {
-      selectedTopic.value = await apiClient.topics.getTopicById(topicId)
-      editForm.value = {
-        topic_name: selectedTopic.value.topic_name,
-        topic_description: selectedTopic.value.topic_description,
-        topic_max_students: selectedTopic.value.topic_max_students,
-        topic_type: selectedTopic.value.topic_type,
-      }
-      editDialogVisible.value = true
-    } catch (error: any) {
-      console.error('Failed to load topic details:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题详情失败',
-        color: 'error',
-      }
-    }
-  }
-
-  async function saveChanges () {
-    const { valid } = await editFormRef.value.validate()
-    if (!valid)
-      return
-
-    try {
-      await apiClient.topics.updateTopicAsTeacher(selectedTopic.value!.topic_id, editForm.value)
-      snackbar.value = {
-        show: true,
-        message: '课题更新成功，等待重新审核',
-        color: 'success',
-      }
-      editDialogVisible.value = false
-      // Reload topics
-      await loadTopics()
-    } catch (error: any) {
-      console.error('Failed to update topic:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('topic', error.statusCode),
-        color: 'error',
-      }
-    }
-  }
-
-  onMounted(() => {
-    fetchUserInfo()
-  })
+onMounted(() => {
+  fetchUserInfo()
+})
 </script>

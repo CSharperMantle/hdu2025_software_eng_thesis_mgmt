@@ -22,7 +22,7 @@
 </template>
 
 <script lang="ts" setup>
-  const { part } = defineProps<{
-    part: number
-  }>()
+const { part } = defineProps<{
+  part: number
+}>()
 </script>

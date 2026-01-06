@@ -17,7 +17,7 @@ export interface HttpClientConfig {
 export class HttpClient {
   private client: AxiosInstance
 
-  constructor (config: HttpClientConfig) {
+  constructor(config: HttpClientConfig) {
     this.client = axios.create({
       baseURL: config.baseURL,
       timeout: config.timeout || 30_000,
@@ -68,16 +68,16 @@ export class HttpClient {
     return response.data
   }
 
-  private setupInterceptors () {
+  private setupInterceptors() {
     this.client.interceptors.response.use(
-      response => response,
+      (response) => response,
       (error: AxiosError) => {
         return Promise.reject(this.handleError(error))
       },
     )
   }
 
-  private handleError (error: AxiosError): Error {
+  private handleError(error: AxiosError): Error {
     if (!error.response) {
       return new ApiError(error.message || 'Network error')
     }
