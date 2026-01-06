@@ -442,6 +442,8 @@ pub async fn get_topics(
             topic_max_students: topic.topic_max_students,
             topic_type: TopicType::try_from(topic.topic_type)
                 .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
+            topic_review_status: TopicReviewStatus::try_from(topic.topic_review_status)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid topic review status")))?,
             current_student_count: current_student_count as i32,
         });
     }
@@ -628,6 +630,8 @@ pub async fn search_topics(
             topic_max_students: topic.topic_max_students,
             topic_type: TopicType::try_from(topic.topic_type)
                 .map_err(|_| ApiError::InternalServerError(str!("Invalid topic type")))?,
+            topic_review_status: TopicReviewStatus::try_from(topic.topic_review_status)
+                .map_err(|_| ApiError::InternalServerError(str!("Invalid topic review status")))?,
             current_student_count: current_student_count as i32,
         });
     }
