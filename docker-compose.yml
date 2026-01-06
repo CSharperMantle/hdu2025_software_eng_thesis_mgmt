@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        - VITE_API_BASE_URL=http://localhost:8080/api
+        - DATABASE_URL=postgres://postgres:password@db:5432/thesis_mgmt
+        - SERVER_HOST=0.0.0.0
+        - SERVER_PORT=8080
+        - COOKIE_PASSPHRASE=ChangeMeIfYouCanGuess
+        - RUST_LOG=info
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  db:
+    image: postgres:18-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=thesis_mgmt
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
