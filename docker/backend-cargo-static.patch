@@ -1,0 +1,15 @@
+diff --git a/backend/Cargo.toml b/backend/Cargo.toml
+index b74a24d250..5bb4d4c326 100644
+--- a/backend/Cargo.toml
++++ b/backend/Cargo.toml
+@@ -27,8 +27,8 @@
+ ] }
+ # build libpq and openssl as part of the build process
+ # uncomment these lines if you run into setup issues
+-# pq-sys = { version = "0.7.5", features = ["bundled"] }
+-# openssl-sys = { version = "0.9.111", features = ["vendored"] } 
++pq-sys = { version = "0.7.5", features = ["bundled"] }
++openssl-sys = { version = "0.9.111", features = ["vendored"] } 
+ dotenvy = "0.15"
+ dotenvy_macro = "0.15.7"
+ env_logger = "0.11.8"

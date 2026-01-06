@@ -1,0 +1,26 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# Dependencies
+Cargo.lock
+
+# Environment files
+.env
+.env.local
+
+# Editor directories
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database files
+*.db
+*.sqlite
+
+# Logs
+*.log

@@ -1,0 +1,43 @@
+# Ignore environment files with secrets
+.env
+.env.local
+frontend/.env.local
+
+# Ignore actual init.sql (keep only .example)
+init.sql
+
+# Docker volumes (if mounted locally)
+volumes/
+
+# Frontend build artifacts and dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# Backend build artifacts
+target/
+backend/target/
+**/*.rs.bk
+*.pdb
+
+# Editor directories
+.vscode/
+.idea/
+.zed/
+dbeaver/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation and other non-essential files
+docs/
+*.md
+!README.md
+
+# Git files
+.git/
+.gitignore
+
+# Scripts
+scripts/
