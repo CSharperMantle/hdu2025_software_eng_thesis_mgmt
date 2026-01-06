@@ -4,7 +4,7 @@
 
   <UserInfoBar role="office" :user-info="userInfo" />
 
-  <div class="d-flex flex-column pa-4">
+  <div class="main-container d-flex flex-column pa-4">
     <v-card class="w-100">
       <template #title>
         <span class="font-weight-black">课题审核</span>
@@ -15,7 +15,7 @@
           v-model="search"
           class="mb-4"
           clearable
-          label="搜索课题名称或描述"
+          label="搜索课题名称"
           prepend-inner-icon="mdi-magnify"
           @update:model-value="onSearchChange"
         />

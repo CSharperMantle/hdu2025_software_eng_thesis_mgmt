@@ -4,7 +4,7 @@
 
   <UserInfoBar role="student" :user-info="userInfo" />
 
-  <div class="d-flex flex-column pa-4">
+  <div class="main-container d-flex flex-column pa-4">
     <div class="text-h5 font-weight-black mb-4">毕业设计进度管理</div>
     <v-stepper alt-labels hide-actions :items="stepItems" :model-value="currentStep">
       <!-- Step 1: Topic Selection -->
@@ -156,14 +156,24 @@
             <div class="text-caption text-grey mb-2">
               提交时间: {{ formatDateTime(finalDefense.final_def_time) }}
             </div>
-            <v-btn
-              v-if="finalDefense.final_def_attachment"
-              color="info"
-              @click="downloadAttachment(finalDefense.final_def_attachment, '答辩材料')"
-            >
-              <v-icon start>mdi-download</v-icon>
-              下载附件
-            </v-btn>
+            <div class="d-flex justify-space-between">
+              <v-btn
+                v-if="finalDefense.final_def_attachment"
+                color="info"
+                @click="downloadAttachment(finalDefense.final_def_attachment, '答辩材料')"
+              >
+                <v-icon start>mdi-download</v-icon>
+                下载附件
+              </v-btn>
+              <v-spacer v-else />
+              <v-btn
+                v-if="finalDefense.final_def_outcome === false"
+                color="primary"
+                @click="openFinalDefenseDialog"
+              >
+                重新提交
+              </v-btn>
+            </div>
           </div>
           <div v-else>
             <v-btn

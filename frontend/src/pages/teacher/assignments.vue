@@ -4,7 +4,7 @@
 
   <UserInfoBar role="teacher" :user-info="userInfo" />
 
-  <div class="d-flex flex-column pa-4">
+  <div class="main-container d-flex flex-column pa-4">
     <v-card class="w-100">
       <template #title>
         <span class="font-weight-black">选题申请审核</span>

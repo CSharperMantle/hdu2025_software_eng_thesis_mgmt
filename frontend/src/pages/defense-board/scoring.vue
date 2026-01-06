@@ -4,7 +4,7 @@
 
   <UserInfoBar role="defense_board" :user-info="userInfo" />
 
-  <div class="d-flex flex-column pa-4">
+  <div class="main-container d-flex flex-column pa-4">
     <div class="text-h5 font-weight-black mb-4">答辩评分管理</div>
 
     <v-expansion-panels v-model="expandedPanel">

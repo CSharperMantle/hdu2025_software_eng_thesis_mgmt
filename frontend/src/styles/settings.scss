@@ -8,3 +8,9 @@
 // @use 'vuetify/settings' with (
 //   $color-pack: false
 // );
+
+.main-container {
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}

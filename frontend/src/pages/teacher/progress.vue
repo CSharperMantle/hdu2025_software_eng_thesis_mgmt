@@ -4,7 +4,7 @@
 
   <UserInfoBar role="teacher" :user-info="userInfo" />
 
-  <div class="d-flex flex-column pa-4">
+  <div class="main-container d-flex flex-column pa-4">
     <div class="text-h5 font-weight-black mb-4">学生进度管理</div>
 
     <v-expansion-panels v-model="expandedPanel">
@@ -191,8 +191,9 @@
                     <v-spacer v-else class="ga-2" />
                     <div
                       v-if="
-                        report.defense.final_def_outcome === null ||
-                        report.defense.final_def_outcome === undefined
+                        (report.defense.final_def_outcome === null ||
+                          report.defense.final_def_outcome === undefined) &&
+                        !report.defense.def_board_user_name
                       "
                       class="d-flex gap-2"
                     >
@@ -200,6 +201,16 @@
                       <v-btn class="ml-2" color="success" @click="approveDefense(report.defense)">
                         批准答辩
                       </v-btn>
+                    </div>
+                    <div
+                      v-else-if="
+                        report.defense.def_board_user_name &&
+                        (report.defense.final_def_outcome === null ||
+                          report.defense.final_def_outcome === undefined)
+                      "
+                      class="text-grey text-caption mt-2"
+                    >
+                      已批准答辩，等待答辩组评分
                     </div>
                   </div>
                 </div>
@@ -339,6 +350,7 @@ async function loadProgressReports() {
 async function loadFinalDefenses() {
   try {
     const response = await apiClient.finalDefenses.getFinalDefenses()
+    console.log(response.defenses)
     finalDefenses.value = response.defenses
   } catch (error: any) {
     console.error('Failed to load final defenses:', error)
@@ -397,18 +409,48 @@ async function groupReports() {
   }
 
   // Add final defenses and update topic names
+  // Group defenses by student to handle multiple defense records
+  const defensesByStudent = new Map<string, FinalDefenseDetails[]>()
   for (const defense of finalDefenses.value) {
-    if (!grouped.has(defense.student_user_name)) {
-      grouped.set(defense.student_user_name, {
-        student_user_name: defense.student_user_name,
-        student_name: defense.student_name,
-        topic_id: defense.topic_id,
-        topic_name: defense.topic_name,
+    if (!defensesByStudent.has(defense.student_user_name)) {
+      defensesByStudent.set(defense.student_user_name, [])
+    }
+    defensesByStudent.get(defense.student_user_name)!.push(defense)
+  }
+
+  // For each student, select the appropriate defense record
+  for (const [studentUserName, defenses] of defensesByStudent.entries()) {
+    // If there are multiple defense records, prioritize incomplete ones (final_def_outcome is null/undefined)
+    const incompleteDefenses = defenses.filter(
+      (d) => d.final_def_outcome === null || d.final_def_outcome === undefined,
+    )
+
+    let selectedDefense: FinalDefenseDetails
+    if (incompleteDefenses.length > 0) {
+      // If there are incomplete defenses, select the most recent one
+      const sorted = incompleteDefenses.sort(
+        (a, b) => new Date(b.final_def_time).getTime() - new Date(a.final_def_time).getTime(),
+      )
+      selectedDefense = sorted[0]!
+    } else {
+      // If all defenses are complete, select the most recent one
+      const sorted = defenses.sort(
+        (a, b) => new Date(b.final_def_time).getTime() - new Date(a.final_def_time).getTime(),
+      )
+      selectedDefense = sorted[0]!
+    }
+
+    if (!grouped.has(studentUserName)) {
+      grouped.set(studentUserName, {
+        student_user_name: studentUserName,
+        student_name: selectedDefense.student_name,
+        topic_id: selectedDefense.topic_id,
+        topic_name: selectedDefense.topic_name,
       })
     }
-    const group = grouped.get(defense.student_user_name)!
-    group.topic_name = defense.topic_name
-    group.defense = defense
+    const group = grouped.get(studentUserName)!
+    group.topic_name = selectedDefense.topic_name
+    group.defense = selectedDefense
   }
 
   // Fetch topic names for students without final defense
