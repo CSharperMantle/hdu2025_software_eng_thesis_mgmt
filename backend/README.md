@@ -51,9 +51,33 @@ VALUES
         NULL
     ), (
         /* 90002/90002 */
-        '90002'
+        '90002',
         decode('42D14F765BE7BC80BA093F7085126A2D2B94D73B69798E74BD376724AE2D0754', 'hex'),
         decode('5B140A585D20DEEC72E1970AC627FADC', 'hex'),
+        NULL
+    ), (
+        /* 99901/99901 */
+        '99901',
+        decode('5D0599344B7AF3DCB233CFA620BDC5E115B34803DBD28507AE987B77A4C017F4', 'hex'),
+        decode('C2CE03CA3B36145588FFDB93C596B866', 'hex'),
+        NULL
+    ), (
+        /* 23010001/23010001 */
+        '23010001',
+        decode('5E0025BEA2AA0C1FED7BC173743E117976987D2290B4343970D39CBA0EF1AC6E', 'hex'),
+        decode('83CBC2C9CC3DA0D8FC408751EC0F7AE9', 'hex'),
+        NULL
+    ), (
+        /* 23020002/23020002 */
+        '23020002',
+        decode('2ED916CD94D2EB9A56BBD768657CF9F9DB9185E8844B1B771B708C541575DA3F', 'hex'),
+        decode('CD244F8CAEC4E4997CC89238A1EE5FB7', 'hex'),
+        NULL
+    ), (
+        /* 23030003/23030003 */
+        '23030003',
+        decode('E67FE2013DCEDC8DA78FA3A05B6A02E8AE44B6A6D3E52BDF10E89423BB5B80D1', 'hex'),
+        decode('7F9E6CB225D425F29202046E6DB66F22', 'hex'),
         NULL
     );
 INSERT INTO sysadmin(user_name)
@@ -68,4 +92,12 @@ INSERT INTO defenseboard(user_name)
 VALUES
     ('90001'),
     ('90002');
+INSERT INTO office(user_name)
+VALUES
+    ('99901');
+INSERT INTO student(user_name, topic_id, major_id, student_name, assn_time)
+VALUES
+    ('23010001', NULL, 1, '张三', '2026-01-06 15:30:32.175'),
+    ('23020002', NULL, 2, '李四', '2026-01-06 15:30:45.110'),
+    ('23030003', NULL, 3, '王五', '2026-01-06 15:30:56.879');
 ```
