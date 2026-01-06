@@ -122,7 +122,7 @@ async function submit() {
 
 <style scoped>
 .login-background {
-  background-image: url('/background.jpg');
+  background-image: url(/background.jpg);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

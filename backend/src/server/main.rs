@@ -4,7 +4,10 @@ mod dto;
 
 use actix_files::{Files, NamedFile};
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use actix_web::{App, HttpServer, Result as ActixResult, cookie::Key, middleware::Logger, web};
+use actix_web::{
+    App, HttpServer, Result as ActixResult, cookie::Key, middleware::Compress, middleware::Logger,
+    web,
+};
 use argon2::Argon2;
 use dotenvy_macro::dotenv;
 use env_logger::Env;
@@ -33,6 +36,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
+            .wrap(Compress::default())
             .wrap(
                 SessionMiddleware::builder(
                     CookieSessionStore::default(),
