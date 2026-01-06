@@ -2,12 +2,13 @@ mod api;
 mod auth;
 mod dto;
 
-use actix_files::Files;
+use actix_files::{Files, NamedFile};
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use actix_web::{App, HttpServer, cookie::Key, middleware::Logger, web};
+use actix_web::{App, HttpServer, Result as ActixResult, cookie::Key, middleware::Logger, web};
 use argon2::Argon2;
 use dotenvy_macro::dotenv;
 use env_logger::Env;
+use std::path::Path;
 
 fn derive_cookie_key(passphrase: &str) -> Key {
     let passphrase = passphrase.as_bytes();
@@ -67,7 +68,12 @@ async fn main() -> std::io::Result<()> {
             .service(
                 Files::new("/", dotenv!("STATIC_FILES_PATH"))
                     .index_file("index.html")
-                    .prefer_utf8(true),
+                    .prefer_utf8(true)
+                    .default_handler(web::to(async || -> ActixResult<NamedFile> {
+                        let index_path =
+                            Path::join(Path::new(dotenv!("STATIC_FILES_PATH")), "index.html");
+                        Ok(NamedFile::open_async(index_path).await?)
+                    })),
             )
     })
     .bind((
