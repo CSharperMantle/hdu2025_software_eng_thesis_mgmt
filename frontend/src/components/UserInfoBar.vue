@@ -21,7 +21,7 @@ import type { UserGetResponse } from '@/api'
 import { computed } from 'vue'
 
 const props = defineProps<{
-  userInfo: UserGetResponse | undefined
+  userInfo: UserGetResponse | null
   role?: 'student' | 'teacher' | 'admin' | 'office' | 'defense_board'
 }>()
 
