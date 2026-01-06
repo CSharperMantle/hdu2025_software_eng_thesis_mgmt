@@ -163,7 +163,7 @@
                       <v-icon start>mdi-download</v-icon>
                       下载附件
                     </v-btn>
-                    <v-spacer class="ga-2" v-else />
+                    <v-spacer v-else class="ga-2" />
                     <div v-if="report.defense.final_def_outcome === null || report.defense.final_def_outcome === undefined" class="d-flex gap-2">
                       <v-btn
                         color="error"
@@ -172,8 +172,8 @@
                         拒绝
                       </v-btn>
                       <v-btn
-                        color="success"
                         class="ml-2"
+                        color="success"
                         @click="approveDefense(report.defense)"
                       >
                         批准答辩
