@@ -137,7 +137,7 @@ export const ERROR_MESSAGES = {
   },
 } as const
 
-export function getErrorMessage (endpoint: string, statusCode?: number): string {
+export function getErrorMessage(endpoint: string, statusCode?: number): string {
   if (!statusCode) {
     return '网络错误，请检查网络连接'
   }

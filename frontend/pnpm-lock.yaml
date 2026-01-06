@@ -27,6 +27,9 @@ importers:
         specifier: ^3.10.1
         version: 3.11.6(typescript@5.9.3)(vite-plugin-vuetify@2.1.2)(vue@3.5.26(typescript@5.9.3))
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.2
+        version: 9.39.2
       '@tsconfig/node22':
         specifier: ^22.0.0
         version: 22.0.5
@@ -45,21 +48,33 @@ importers:
       eslint:
         specifier: ^9.35.0
         version: 9.39.2
+      eslint-config-prettier:
+        specifier: ^10.1.8
+        version: 10.1.8(eslint@9.39.2)
       eslint-config-vuetify:
         specifier: ^4.2.0
         version: 4.3.4(eslint@9.39.2)(typescript@5.9.3)
+      eslint-plugin-prettier:
+        specifier: ^5.5.4
+        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.39.2))(eslint@9.39.2)(prettier@3.7.4)
       eslint-plugin-vue:
         specifier: ^10.6.2
         version: 10.6.2(@stylistic/eslint-plugin@5.6.1(eslint@9.39.2))(@typescript-eslint/parser@8.52.0(eslint@9.39.2)(typescript@5.9.3))(eslint@9.39.2)(vue-eslint-parser@10.2.0(eslint@9.39.2))
       npm-run-all2:
         specifier: ^8.0.4
         version: 8.0.4
+      prettier:
+        specifier: ^3.7.4
+        version: 3.7.4
       sass-embedded:
         specifier: ^1.92.1
         version: 1.97.1
       typescript:
         specifier: ~5.9.2
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.52.0
+        version: 8.52.0(eslint@9.39.2)(typescript@5.9.3)
       unplugin-fonts:
         specifier: ^1.4.0
         version: 1.4.0(vite@7.3.0(@types/node@22.19.3)(sass-embedded@1.97.1)(sass@1.97.1)(yaml@2.8.2))
@@ -1045,6 +1060,12 @@ packages:
     peerDependencies:
       eslint: ^9.5.0
 
+  eslint-config-prettier@10.1.8:
+    resolution: {integrity: sha512-82GZUjRS0p/jganf6q1rEO25VSoHH0hKPCTrgillPjdI/3bgBhAE1QzHrHTizjpRvy6pGAvKjDJtk2pF9NDq8w==}
+    hasBin: true
+    peerDependencies:
+      eslint: '>=7.0.0'
+
   eslint-config-vuetify@4.3.4:
     resolution: {integrity: sha512-9UFPZJRq6++dhM+UqcVSmFDwYOa9P4yCxTBNA9SzQy/EC+onHtKl4u0ebaCKnQ3Wk8lSf8h70KxId/XQ/6TKkw==}
     hasBin: true
@@ -1112,6 +1133,20 @@ packages:
     resolution: {integrity: sha512-wdWrkWN5mxRgEADkQvxwv0xA+0++/hYDD5OyXTL6UqPLUPdcCFQJO61NO7IKhEqb3GclWs02OoFs1METN+a3zQ==}
     peerDependencies:
       eslint: ^9.0.0
+
+  eslint-plugin-prettier@5.5.4:
+    resolution: {integrity: sha512-swNtI95SToIz05YINMA6Ox5R057IMAmWZ26GqPxusAp1TZzj+IdY9tXNWWD3vkF/wEqydCONcwjTFpxybBqZsg==}
+    engines: {node: ^14.18.0 || >=16.0.0}
+    peerDependencies:
+      '@types/eslint': '>=8.0.0'
+      eslint: '>=8.0.0'
+      eslint-config-prettier: '>= 7.0.0 <10.0.0 || >=10.1.0'
+      prettier: '>=3.0.0'
+    peerDependenciesMeta:
+      '@types/eslint':
+        optional: true
+      eslint-config-prettier:
+        optional: true
 
   eslint-plugin-regexp@2.10.0:
     resolution: {integrity: sha512-ovzQT8ESVn5oOe5a7gIDPD5v9bCSjIFJu57sVPDqgPRXicQzOnYfFN21WoQBQF18vrhT5o7UMKFwJQVVjyJ0ng==}
@@ -1198,6 +1233,9 @@ packages:
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
+
+  fast-diff@1.3.0:
+    resolution: {integrity: sha512-VxPP4NqbUjj6MaAOafWeUn2cXWLcCtljklUtZf0Ind4XQ+QPtmA0b18zZy0jIQx+ExRVCR/ZQpBmik5lXshNsw==}
 
   fast-glob@3.3.3:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
@@ -1600,6 +1638,15 @@ packages:
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
+
+  prettier-linter-helpers@1.0.1:
+    resolution: {integrity: sha512-SxToR7P8Y2lWmv/kTzVLC1t/GDI2WGjMwNhLLE9qtH8Q13C+aEmuRlzDst4Up4s0Wc8sF2M+J57iB3cMLqftfg==}
+    engines: {node: '>=6.0.0'}
+
+  prettier@3.7.4:
+    resolution: {integrity: sha512-v6UNi1+3hSlVvv8fSaoUbggEM5VErKmmpGA7Pl3HF8V6uKY7rvClBOJlH6yNwQtfTueNkGVpOv/mtWL9L4bgRA==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
@@ -3088,6 +3135,10 @@ snapshots:
       '@eslint/compat': 1.4.1(eslint@9.39.2)
       eslint: 9.39.2
 
+  eslint-config-prettier@10.1.8(eslint@9.39.2):
+    dependencies:
+      eslint: 9.39.2
+
   eslint-config-vuetify@4.3.4(eslint@9.39.2)(typescript@5.9.3):
     dependencies:
       '@clack/prompts': 0.11.0
@@ -3178,6 +3229,15 @@ snapshots:
       tinyglobby: 0.2.15
       yaml: 2.8.2
       yaml-eslint-parser: 1.3.2
+
+  eslint-plugin-prettier@5.5.4(eslint-config-prettier@10.1.8(eslint@9.39.2))(eslint@9.39.2)(prettier@3.7.4):
+    dependencies:
+      eslint: 9.39.2
+      prettier: 3.7.4
+      prettier-linter-helpers: 1.0.1
+      synckit: 0.11.11
+    optionalDependencies:
+      eslint-config-prettier: 10.1.8(eslint@9.39.2)
 
   eslint-plugin-regexp@2.10.0(eslint@9.39.2):
     dependencies:
@@ -3309,6 +3369,8 @@ snapshots:
   exsolve@1.0.8: {}
 
   fast-deep-equal@3.1.3: {}
+
+  fast-diff@1.3.0: {}
 
   fast-glob@3.3.3:
     dependencies:
@@ -3672,6 +3734,12 @@ snapshots:
       source-map-js: 1.2.1
 
   prelude-ls@1.2.1: {}
+
+  prettier-linter-helpers@1.0.1:
+    dependencies:
+      fast-diff: 1.3.0
+
+  prettier@3.7.4: {}
 
   proxy-from-env@1.1.0: {}
 

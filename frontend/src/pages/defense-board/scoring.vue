@@ -32,7 +32,10 @@
               <div class="text-body-2">{{ formatDateTime(defense.final_def_time) }}</div>
             </div>
 
-            <div v-if="defense.final_def_outcome !== null && defense.final_def_outcome !== undefined" class="mb-3">
+            <div
+              v-if="defense.final_def_outcome !== null && defense.final_def_outcome !== undefined"
+              class="mb-3"
+            >
               <v-chip class="mb-2" :color="defense.final_def_outcome ? 'success' : 'error'">
                 {{ defense.final_def_outcome ? '通过' : '未通过' }}
               </v-chip>
@@ -50,7 +53,12 @@
               <v-btn
                 v-if="defense.final_def_attachment"
                 color="info"
-                @click="downloadAttachment(defense.final_def_attachment, `${defense.student_name}_答辩材料`)"
+                @click="
+                  downloadAttachment(
+                    defense.final_def_attachment,
+                    `${defense.student_name}_答辩材料`,
+                  )
+                "
               >
                 <v-icon start>mdi-download</v-icon>
                 下载答辩材料
@@ -69,9 +77,7 @@
       </v-expansion-panel>
     </v-expansion-panels>
 
-    <div v-if="finalDefenses.length === 0" class="text-center text-grey pa-8">
-      暂无待评分的答辩
-    </div>
+    <div v-if="finalDefenses.length === 0" class="text-center text-grey pa-8">暂无待评分的答辩</div>
   </div>
 
   <!-- Scoring Dialog -->
@@ -92,7 +98,7 @@
           <v-radio-group
             v-model="scoringForm.outcome"
             label="答辩结果"
-            :rules="[v => v !== null && v !== undefined || '请选择答辩结果']"
+            :rules="[(v) => (v !== null && v !== undefined) || '请选择答辩结果']"
           >
             <v-radio label="通过" :value="true" />
             <v-radio label="未通过" :value="false" />
@@ -102,8 +108,8 @@
             v-model.number="scoringForm.grade"
             label="答辩成绩"
             :rules="[
-              v => (v !== null && v !== undefined && v !== '') || '请输入成绩',
-              v => (v >= 0 && v <= 100) || '成绩范围0-100'
+              (v) => (v !== null && v !== undefined && v !== '') || '请输入成绩',
+              (v) => (v >= 0 && v <= 100) || '成绩范围0-100',
             ]"
             type="number"
             variant="outlined"
@@ -113,7 +119,7 @@
             v-model="scoringForm.comment"
             label="评审意见"
             rows="4"
-            :rules="[v => !!v || '请输入评审意见']"
+            :rules="[(v) => !!v || '请输入评审意见']"
             variant="outlined"
           />
         </v-form>
@@ -121,12 +127,8 @@
 
       <v-card-actions>
         <v-spacer />
-        <v-btn color="grey" variant="text" @click="scoringDialogVisible = false">
-          取消
-        </v-btn>
-        <v-btn color="primary" @click="submitScoring">
-          提交
-        </v-btn>
+        <v-btn color="grey" variant="text" @click="scoringDialogVisible = false"> 取消 </v-btn>
+        <v-btn color="primary" @click="submitScoring"> 提交 </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -137,142 +139,137 @@
 </template>
 
 <script lang="ts" setup>
-  import type { FinalDefenseDetails, UserGetResponse } from '@/api'
-  import { onMounted, ref } from 'vue'
-  import {
-    createApiClient,
-    getErrorMessage,
-  } from '@/api'
-  import { API_BASE_URL } from '@/config'
+import type { FinalDefenseDetails, UserGetResponse } from '@/api'
+import { onMounted, ref } from 'vue'
+import { createApiClient, getErrorMessage } from '@/api'
+import { API_BASE_URL } from '@/config'
 
-  const currentPart = 0 // Scoring is part 0 in DefenseBoardDrawer
-  const userInfo = ref<UserGetResponse | null>(null)
-  const finalDefenses = ref<FinalDefenseDetails[]>([])
-  const expandedPanel = ref<number | null>(null)
-  const scoringDialogVisible = ref(false)
-  const scoringFormRef = ref<any>(null)
-  const selectedDefense = ref<FinalDefenseDetails | null>(null)
+const currentPart = 0 // Scoring is part 0 in DefenseBoardDrawer
+const userInfo = ref<UserGetResponse | null>(null)
+const finalDefenses = ref<FinalDefenseDetails[]>([])
+const expandedPanel = ref<number | null>(null)
+const scoringDialogVisible = ref(false)
+const scoringFormRef = ref<any>(null)
+const selectedDefense = ref<FinalDefenseDetails | null>(null)
 
-  const scoringForm = ref({
-    outcome: null as boolean | null,
-    grade: null as number | null,
+const scoringForm = ref({
+  outcome: null as boolean | null,
+  grade: null as number | null,
+  comment: '',
+})
+
+const snackbar = ref({
+  show: false,
+  message: '',
+  color: 'success',
+})
+
+const apiClient = createApiClient(API_BASE_URL)
+
+async function fetchUserInfo() {
+  try {
+    userInfo.value = await apiClient.auth.getCurrentUser()
+  } catch (error) {
+    console.error('Failed to fetch user info:', error)
+  }
+}
+
+async function loadFinalDefenses() {
+  try {
+    const response = await apiClient.finalDefenses.getFinalDefenses()
+    finalDefenses.value = response.defenses
+  } catch (error: any) {
+    console.error('Failed to load final defenses:', error)
+  }
+}
+
+function getDefenseStatus(defense: FinalDefenseDetails): string {
+  if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
+    return defense.final_def_outcome ? '已通过' : '未通过'
+  }
+  return '待评分'
+}
+
+function getDefenseStatusColor(defense: FinalDefenseDetails): string {
+  if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
+    return defense.final_def_outcome ? 'success' : 'error'
+  }
+  return 'warning'
+}
+
+function formatDateTime(dateTime: string | null): string {
+  if (!dateTime) return '-'
+  const date = new Date(dateTime)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function openScoringDialog(defense: FinalDefenseDetails) {
+  selectedDefense.value = defense
+  scoringForm.value = {
+    outcome: null,
+    grade: null,
     comment: '',
-  })
+  }
+  scoringDialogVisible.value = true
+}
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+async function submitScoring() {
+  const { valid } = await scoringFormRef.value.validate()
+  if (!valid || !selectedDefense.value) return
 
-  const apiClient = createApiClient(API_BASE_URL)
-
-  async function fetchUserInfo () {
-    try {
-      userInfo.value = await apiClient.auth.getCurrentUser()
-    } catch (error) {
-      console.error('Failed to fetch user info:', error)
+  try {
+    await apiClient.finalDefenses.updateFinalDefenseAsDefenseBoard(
+      selectedDefense.value.final_def_id,
+      {
+        outcome: scoringForm.value.outcome as boolean,
+        comment: scoringForm.value.comment,
+        grade: scoringForm.value.grade as number,
+      },
+    )
+    snackbar.value = {
+      show: true,
+      message: '评分提交成功',
+      color: 'success',
+    }
+    scoringDialogVisible.value = false
+    // Reload data
+    await loadFinalDefenses()
+  } catch (error: any) {
+    console.error('Failed to submit scoring:', error)
+    snackbar.value = {
+      show: true,
+      message: getErrorMessage('defense', error.statusCode),
+      color: 'error',
     }
   }
+}
 
-  async function loadFinalDefenses () {
-    try {
-      const response = await apiClient.finalDefenses.getFinalDefenses()
-      finalDefenses.value = response.defenses
-    } catch (error: any) {
-      console.error('Failed to load final defenses:', error)
+function downloadAttachment(attachment: string, fileName: string) {
+  try {
+    const link = document.createElement('a')
+    link.href = attachment
+    link.download = fileName
+    document.body.append(link)
+    link.click()
+    link.remove()
+  } catch (error) {
+    console.error('Failed to download attachment:', error)
+    snackbar.value = {
+      show: true,
+      message: '下载失败',
+      color: 'error',
     }
   }
+}
 
-  function getDefenseStatus (defense: FinalDefenseDetails): string {
-    if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
-      return defense.final_def_outcome ? '已通过' : '未通过'
-    }
-    return '待评分'
-  }
-
-  function getDefenseStatusColor (defense: FinalDefenseDetails): string {
-    if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
-      return defense.final_def_outcome ? 'success' : 'error'
-    }
-    return 'warning'
-  }
-
-  function formatDateTime (dateTime: string | null): string {
-    if (!dateTime)
-      return '-'
-    const date = new Date(dateTime)
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  function openScoringDialog (defense: FinalDefenseDetails) {
-    selectedDefense.value = defense
-    scoringForm.value = {
-      outcome: null,
-      grade: null,
-      comment: '',
-    }
-    scoringDialogVisible.value = true
-  }
-
-  async function submitScoring () {
-    const { valid } = await scoringFormRef.value.validate()
-    if (!valid || !selectedDefense.value)
-      return
-
-    try {
-      await apiClient.finalDefenses.updateFinalDefenseAsDefenseBoard(
-        selectedDefense.value.final_def_id,
-        {
-          outcome: scoringForm.value.outcome as boolean,
-          comment: scoringForm.value.comment,
-          grade: scoringForm.value.grade as number,
-        },
-      )
-      snackbar.value = {
-        show: true,
-        message: '评分提交成功',
-        color: 'success',
-      }
-      scoringDialogVisible.value = false
-      // Reload data
-      await loadFinalDefenses()
-    } catch (error: any) {
-      console.error('Failed to submit scoring:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('defense', error.statusCode),
-        color: 'error',
-      }
-    }
-  }
-
-  function downloadAttachment (attachment: string, fileName: string) {
-    try {
-      const link = document.createElement('a')
-      link.href = attachment
-      link.download = fileName
-      document.body.append(link)
-      link.click()
-      link.remove()
-    } catch (error) {
-      console.error('Failed to download attachment:', error)
-      snackbar.value = {
-        show: true,
-        message: '下载失败',
-        color: 'error',
-      }
-    }
-  }
-
-  onMounted(() => {
-    fetchUserInfo()
-    loadFinalDefenses()
-  })
+onMounted(() => {
+  fetchUserInfo()
+  loadFinalDefenses()
+})
 </script>

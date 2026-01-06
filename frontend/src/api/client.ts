@@ -15,7 +15,7 @@ export class ThesisManagementApiClient {
   public finalDefenses: FinalDefenseService
   private httpClient: HttpClient
 
-  constructor (config: HttpClientConfig) {
+  constructor(config: HttpClientConfig) {
     this.httpClient = new HttpClient(config)
 
     this.auth = new AuthService(this.httpClient)
@@ -25,12 +25,15 @@ export class ThesisManagementApiClient {
     this.finalDefenses = new FinalDefenseService(this.httpClient)
   }
 
-  async ping (): Promise<PingResponse> {
+  async ping(): Promise<PingResponse> {
     return this.httpClient.get<PingResponse>('/ping')
   }
 }
 
-export function createApiClient (baseURL: string, config?: Partial<HttpClientConfig>): ThesisManagementApiClient {
+export function createApiClient(
+  baseURL: string,
+  config?: Partial<HttpClientConfig>,
+): ThesisManagementApiClient {
   return new ThesisManagementApiClient({
     baseURL,
     ...config,
