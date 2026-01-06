@@ -170,6 +170,7 @@ pub struct TopicBrief {
     pub topic_name: String,
     pub topic_max_students: i32,
     pub topic_type: TopicType,
+    // FIXME: topic_review_status: TopicReviewStatus,
     pub current_student_count: i32,
 }
 

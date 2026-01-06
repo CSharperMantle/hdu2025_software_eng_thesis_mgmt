@@ -48,6 +48,7 @@ export interface TopicBrief {
   topic_name: string
   topic_max_students: number
   topic_type: TopicType
+  topic_review_status: TopicReviewStatus
   current_student_count: number
 }
 
