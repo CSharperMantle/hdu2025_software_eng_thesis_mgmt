@@ -12,11 +12,11 @@ name = "backend_server"
 path = "src/server/main.rs"
 
 [dependencies]
-anyhow = { version = "1.0.100", features = ["backtrace"] }
-serde = "1.0.228"
 actix-web = "4"
 actix-session = { version = "0.11.0", features = ["cookie-session"] }
-env_logger = "0.11.8"
+actix-files = "0.6.9"
+anyhow = { version = "1.0.100", features = ["backtrace"] }
+argon2 = { version = "0.5.3", features = ["std"] }
 bigdecimal = { version = "0.4.10", features = ["serde"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 diesel = { version = "2.3.5", features = [
@@ -31,10 +31,11 @@ diesel = { version = "2.3.5", features = [
 # openssl-sys = { version = "0.9.100", features = ["vendored"] } 
 dotenvy = "0.15"
 dotenvy_macro = "0.15.7"
-argon2 = { version = "0.5.3", features = ["std"] }
+env_logger = "0.11.8"
 num_enum = "0.7.5"
-str-macro = "1.0.1"
+serde = "1.0.228"
 serde_repr = "0.1.20"
+str-macro = "1.0.1"
 
 [lints.clippy]
 all = "deny"

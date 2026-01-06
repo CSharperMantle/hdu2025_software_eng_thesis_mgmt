@@ -2,6 +2,7 @@ mod api;
 mod helper;
 mod model;
 
+use actix_files::Files;
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 use actix_web::{App, HttpServer, cookie::Key, middleware::Logger, web};
 use argon2::Argon2;
@@ -62,6 +63,11 @@ async fn main() -> std::io::Result<()> {
                     .service(api::get_final_defenses)
                     .service(api::create_final_defense)
                     .service(api::update_final_defense),
+            )
+            .service(
+                Files::new("/", dotenv!("STATIC_FILES_PATH"))
+                    .index_file("index.html")
+                    .prefer_utf8(true),
             )
     })
     .bind((
