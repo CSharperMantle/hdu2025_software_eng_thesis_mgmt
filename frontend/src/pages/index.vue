@@ -20,9 +20,6 @@
     </v-card>
   </div>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
@@ -30,15 +27,12 @@
   import { useRouter } from 'vue-router'
   import { createApiClient, getErrorMessage } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const userName = ref('')
   const passWord = ref('')
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError, showInfo } = useSnackbar()
 
   const apiClient = createApiClient(API_BASE_URL)
   const router = useRouter()
@@ -51,11 +45,7 @@
       // If we reach here, user is already logged in, so logout
       await apiClient.auth.logout()
 
-      snackbar.value = {
-        show: true,
-        message: '检测到已登录，已自动退出',
-        color: 'info',
-      }
+      showInfo('检测到已登录，已自动退出')
     } catch {
       // Not logged in, continue to login page
       console.log('Not logged in yet')
@@ -77,11 +67,7 @@
       const userInfo = await apiClient.auth.getCurrentUser()
       console.log('Login successful, user role:', userInfo.role)
 
-      snackbar.value = {
-        show: true,
-        message: '登录成功!',
-        color: 'success',
-      }
+      showSuccess('登录成功!')
 
       // Redirect to appropriate page based on userInfo.role
       switch (userInfo.role) {
@@ -111,11 +97,7 @@
     } catch (error: any) {
       console.error('Login failed:', error)
 
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('login', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('login', error.statusCode))
     }
   }
 </script>

@@ -85,9 +85,6 @@
     </v-card>
   </v-dialog>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
@@ -95,6 +92,7 @@
   import { useRouter } from 'vue-router'
   import { createApiClient, getErrorMessage } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const router = useRouter()
   const apiClient = createApiClient(API_BASE_URL)
@@ -116,11 +114,7 @@
   const avatarFile = ref<File | null>(null)
   const avatarPreview = ref<string | null>(null)
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   async function loadUserInfo () {
     try {
@@ -167,23 +161,15 @@
     try {
       await apiClient.auth.updateCurrentUser({
         name: userInfoForm.value.name,
-        avatar: avatarPreview.value || undefined,
+        avatar: avatarPreview.value || '',
       })
-      snackbar.value = {
-        show: true,
-        message: '账户信息更新成功',
-        color: 'success',
-      }
+      showSuccess('账户信息更新成功')
       userInfoDialogVisible.value = false
       // Reload page to refresh avatar in UserInfoBar
       window.location.reload()
     } catch (error: any) {
       console.error('Failed to update user info:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('user', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('user', error.statusCode))
     }
   }
 
@@ -195,19 +181,11 @@
       await apiClient.auth.updateCurrentUser({
         password: passwordForm.value.password,
       })
-      snackbar.value = {
-        show: true,
-        message: '密码修改成功',
-        color: 'success',
-      }
+      showSuccess('密码修改成功')
       passwordDialogVisible.value = false
     } catch (error: any) {
       console.error('Failed to update password:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('user', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('user', error.statusCode))
     }
   }
 

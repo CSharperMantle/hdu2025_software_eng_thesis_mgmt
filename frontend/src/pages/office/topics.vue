@@ -53,10 +53,6 @@
     </v-card>
   </div>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
-
   <v-dialog v-model="dialogVisible" max-width="800">
     <v-card v-if="selectedTopic">
       <v-card-title class="d-flex justify-space-between align-center">
@@ -149,6 +145,7 @@
     getTopicTypeName,
   } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const currentPart = 0
   const userInfo = ref<UserGetResponse | null>(null)
@@ -161,11 +158,7 @@
   const dialogVisible = ref(false)
   const selectedTopic = ref<TopicDetails | null>(null)
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   const headers = [
     { title: '课题名称', key: 'topic_name', sortable: false },
@@ -202,11 +195,7 @@
       totalItems.value = response.total
     } catch (error: any) {
       console.error('Failed to load topics:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题列表失败',
-        color: 'error',
-      }
+      showError('加载课题列表失败')
     } finally {
       loading.value = false
     }
@@ -223,11 +212,7 @@
       dialogVisible.value = true
     } catch (error: any) {
       console.error('Failed to load topic details:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题详情失败',
-        color: 'error',
-      }
+      showError('加载课题详情失败')
     }
   }
 
@@ -238,21 +223,13 @@
       await apiClient.topics.updateTopicAsOffice(selectedTopic.value.topic_id, {
         topic_review_status: status,
       })
-      snackbar.value = {
-        show: true,
-        message: status === 1 ? '课题已通过审核' : '课题已被拒绝',
-        color: 'success',
-      }
+      showSuccess(status === 1 ? '课题已通过审核' : '课题已被拒绝')
       dialogVisible.value = false
       // Reload topics
       await loadTopics()
     } catch (error: any) {
       console.error('Failed to update topic status:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('topic', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('topic', error.statusCode))
     }
   }
 

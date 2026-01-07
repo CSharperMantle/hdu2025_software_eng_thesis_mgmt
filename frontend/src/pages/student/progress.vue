@@ -255,9 +255,6 @@
     </v-card>
   </v-dialog>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
@@ -265,6 +262,7 @@
   import { computed, onMounted, ref } from 'vue'
   import { createApiClient, getErrorMessage, PROGRESS_OUTCOME_MAP } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const currentPart = 1 // Progress management is part 1 in StudentDrawer
   const userInfo = ref<UserGetResponse | null>(null)
@@ -281,11 +279,7 @@
   const defenseAttachmentFile = ref<File | null>(null)
   const defenseAttachmentData = ref<string>('')
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   const stepItems = computed(() => [
     { title: '选题', value: 1, props: { editable: true } },
@@ -432,20 +426,12 @@
       await apiClient.progressReports.createProgressReport({
         attachment: attachmentData.value,
       })
-      snackbar.value = {
-        show: true,
-        message: submitType.value === 0 ? '开题报告提交成功' : '中期检查提交成功',
-        color: 'success',
-      }
+      showSuccess(submitType.value === 0 ? '开题报告提交成功' : '中期检查提交成功')
       submitDialogVisible.value = false
       await loadProgressReports()
     } catch (error: any) {
       console.error('Failed to submit progress report:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('progress', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('progress', error.statusCode))
     }
   }
 
@@ -457,20 +443,12 @@
       await apiClient.finalDefenses.createFinalDefense({
         attachment: defenseAttachmentData.value,
       })
-      snackbar.value = {
-        show: true,
-        message: '答辩申请提交成功',
-        color: 'success',
-      }
+      showSuccess('答辩申请提交成功')
       finalDefenseDialogVisible.value = false
       await loadFinalDefense()
     } catch (error: any) {
       console.error('Failed to submit final defense:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('defense', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('defense', error.statusCode))
     }
   }
 
@@ -485,11 +463,7 @@
       link.remove()
     } catch (error) {
       console.error('Failed to download attachment:', error)
-      snackbar.value = {
-        show: true,
-        message: '下载失败',
-        color: 'error',
-      }
+      showError('下载失败')
     }
   }
 

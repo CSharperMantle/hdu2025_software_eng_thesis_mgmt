@@ -56,9 +56,6 @@
     </v-card>
   </div>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
@@ -66,6 +63,7 @@
   import { onMounted, ref } from 'vue'
   import { createApiClient, getErrorMessage, getTopicTypeName } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const currentPart = 0
   const userInfo = ref<UserGetResponse | null>(null)
@@ -77,11 +75,7 @@
   const totalItems = ref(0)
   const search = ref('')
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   const headers = [
     { title: '课题名称', key: 'topic_name', sortable: false },
@@ -127,11 +121,7 @@
       totalItems.value = response.total
     } catch (error: any) {
       console.error('Failed to load topics:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题列表失败',
-        color: 'error',
-      }
+      showError('加载课题列表失败')
     } finally {
       loading.value = false
     }
@@ -150,20 +140,12 @@
   async function selectTopic (topicId: number) {
     try {
       await apiClient.assignments.createAssignment({ topic_id: topicId })
-      snackbar.value = {
-        show: true,
-        message: '选题申请已提交',
-        color: 'success',
-      }
+      showSuccess('选题申请已提交')
       // Reload assignments and topics to update availability
       await Promise.all([loadAssignments(), loadTopics()])
     } catch (error: any) {
       console.error('Failed to select topic:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('assignment', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('assignment', error.statusCode))
     }
   }
 

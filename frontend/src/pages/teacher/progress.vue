@@ -267,9 +267,6 @@
     </v-card>
   </v-dialog>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
@@ -277,6 +274,7 @@
   import { onMounted, ref } from 'vue'
   import { createApiClient, getErrorMessage, PROGRESS_OUTCOME_MAP } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const currentPart = 2 // Progress review is part 2 in TeacherDrawer
   const userInfo = ref<UserGetResponse | null>(null)
@@ -293,11 +291,7 @@
     comment: '',
   })
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   function getStepItems (report: GroupedReport) {
     const currentStep = getCurrentStep(report)
@@ -561,22 +555,14 @@
         comment: reviewForm.value.comment || undefined,
         grade: reviewForm.value.grade || undefined,
       })
-      snackbar.value = {
-        show: true,
-        message: '审核提交成功',
-        color: 'success',
-      }
+      showSuccess('审核提交成功')
       reviewDialogVisible.value = false
       // Reload data
       await loadProgressReports()
       await groupReports()
     } catch (error: any) {
       console.error('Failed to submit review:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('progress', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('progress', error.statusCode))
     }
   }
 
@@ -591,11 +577,7 @@
       link.remove()
     } catch (error) {
       console.error('Failed to download attachment:', error)
-      snackbar.value = {
-        show: true,
-        message: '下载失败',
-        color: 'error',
-      }
+      showError('下载失败')
     }
   }
 
@@ -604,21 +586,13 @@
       await apiClient.finalDefenses.updateFinalDefenseAsTeacher(defense.final_def_id, {
         approved: true,
       })
-      snackbar.value = {
-        show: true,
-        message: '答辩申请已批准',
-        color: 'success',
-      }
+      showSuccess('答辩申请已批准')
       // Reload data
       await loadFinalDefenses()
       await groupReports()
     } catch (error: any) {
       console.error('Failed to approve defense:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('defense', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('defense', error.statusCode))
     }
   }
 
@@ -627,21 +601,13 @@
       await apiClient.finalDefenses.updateFinalDefenseAsTeacher(defense.final_def_id, {
         approved: false,
       })
-      snackbar.value = {
-        show: true,
-        message: '答辩申请已拒绝',
-        color: 'success',
-      }
+      showSuccess('答辩申请已拒绝')
       // Reload data
       await loadFinalDefenses()
       await groupReports()
     } catch (error: any) {
       console.error('Failed to reject defense:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('defense', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('defense', error.statusCode))
     }
   }
 

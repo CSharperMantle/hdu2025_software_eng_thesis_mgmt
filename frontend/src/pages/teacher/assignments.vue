@@ -56,9 +56,6 @@
     </v-card>
   </div>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
 </template>
 
 <script lang="ts" setup>
@@ -66,6 +63,7 @@
   import { onMounted, ref } from 'vue'
   import { ASSIGNMENT_STATUS_MAP, createApiClient, getErrorMessage } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const currentPart = 1 // Assignment review is part 1 in TeacherDrawer
   const userInfo = ref<UserGetResponse | null>(null)
@@ -75,11 +73,7 @@
   const itemsPerPage = ref(20)
   const totalItems = ref(0)
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   const headers = [
     { title: '学生姓名', key: 'student_name', sortable: false },
@@ -112,11 +106,7 @@
       totalItems.value = response.total
     } catch (error: any) {
       console.error('Failed to load assignments:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载选题申请失败',
-        color: 'error',
-      }
+      showError('加载选题申请失败')
     } finally {
       loading.value = false
     }
@@ -145,20 +135,12 @@
   async function approveAssignment (studentUserName: string, topicId: number, approved: boolean) {
     try {
       await apiClient.assignments.updateAssignmentStatus(studentUserName, topicId, { approved })
-      snackbar.value = {
-        show: true,
-        message: approved ? '已批准选题申请' : '已拒绝选题申请',
-        color: 'success',
-      }
+      showSuccess(approved ? '已批准选题申请' : '已拒绝选题申请')
       // Reload assignments
       await loadAssignments()
     } catch (error: any) {
       console.error('Failed to update assignment status:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('assignment', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('assignment', error.statusCode))
     }
   }
 

@@ -59,10 +59,6 @@
     </v-card>
   </div>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-    {{ snackbar.message }}
-  </v-snackbar>
-
   <v-dialog v-model="createDialogVisible" max-width="800">
     <v-card>
       <v-card-title class="d-flex justify-space-between align-center">
@@ -223,6 +219,7 @@
     TOPIC_TYPES,
   } from '@/api'
   import { API_BASE_URL } from '@/config'
+  import { useSnackbar } from '@/composables/useSnackbar'
 
   const currentPart = 0
   const userInfo = ref<UserGetResponse | null>(null)
@@ -258,11 +255,7 @@
     { id: 3, name: '人工智能' },
   ]
 
-  const snackbar = ref({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const { showSuccess, showError } = useSnackbar()
 
   const headers = [
     { title: '课题名称', key: 'topic_name', sortable: false },
@@ -298,11 +291,7 @@
       totalItems.value = response.total
     } catch (error: any) {
       console.error('Failed to load topics:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题列表失败',
-        color: 'error',
-      }
+      showError('加载课题列表失败')
     } finally {
       loading.value = false
     }
@@ -323,11 +312,7 @@
 
     try {
       await apiClient.topics.createTopic(newTopic.value)
-      snackbar.value = {
-        show: true,
-        message: '课题创建成功，等待审核',
-        color: 'success',
-      }
+      showSuccess('课题创建成功，等待审核')
 
       // Reset form
       newTopic.value = {
@@ -344,11 +329,7 @@
       await loadTopics()
     } catch (error: any) {
       console.error('Failed to create topic:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('topic', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('topic', error.statusCode))
     }
   }
 
@@ -364,11 +345,7 @@
       editDialogVisible.value = true
     } catch (error: any) {
       console.error('Failed to load topic details:', error)
-      snackbar.value = {
-        show: true,
-        message: '加载课题详情失败',
-        color: 'error',
-      }
+      showError('加载课题详情失败')
     }
   }
 
@@ -378,21 +355,13 @@
 
     try {
       await apiClient.topics.updateTopicAsTeacher(selectedTopic.value!.topic_id, editForm.value)
-      snackbar.value = {
-        show: true,
-        message: '课题更新成功，等待重新审核',
-        color: 'success',
-      }
+      showSuccess('课题更新成功，等待重新审核')
       editDialogVisible.value = false
       // Reload topics
       await loadTopics()
     } catch (error: any) {
       console.error('Failed to update topic:', error)
-      snackbar.value = {
-        show: true,
-        message: getErrorMessage('topic', error.statusCode),
-        color: 'error',
-      }
+      showError(getErrorMessage('topic', error.statusCode))
     }
   }
 
