@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(
+  constructor (
     message: string,
     public statusCode?: number,
     public response?: any,
@@ -10,28 +10,28 @@ export class ApiError extends Error {
 }
 
 export class AuthenticationError extends ApiError {
-  constructor(message = 'Authentication failed') {
+  constructor (message = 'Authentication failed') {
     super(message, 401)
     this.name = 'AuthenticationError'
   }
 }
 
 export class AuthorizationError extends ApiError {
-  constructor(message = 'Access denied') {
+  constructor (message = 'Access denied') {
     super(message, 403)
     this.name = 'AuthorizationError'
   }
 }
 
 export class NotFoundError extends ApiError {
-  constructor(message = 'Resource not found') {
+  constructor (message = 'Resource not found') {
     super(message, 404)
     this.name = 'NotFoundError'
   }
 }
 
 export class ValidationError extends ApiError {
-  constructor(
+  constructor (
     message = 'Validation failed',
     public errors?: any,
   ) {

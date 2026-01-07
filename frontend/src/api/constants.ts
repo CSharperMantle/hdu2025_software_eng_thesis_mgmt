@@ -15,7 +15,7 @@ export const TOPIC_TYPES = Array.from(TOPIC_TYPE_MAP.entries()).map(([value, nam
 }))
 
 // Topic Review Status
-export const TOPIC_REVIEW_STATUS_MAP = new Map<TopicReviewStatus, { name: string; color: string }>([
+export const TOPIC_REVIEW_STATUS_MAP = new Map<TopicReviewStatus, { name: string, color: string }>([
   [0, { name: '待审核', color: 'warning' }],
   [1, { name: '已通过', color: 'success' }],
   [2, { name: '已拒绝', color: 'error' }],
@@ -58,22 +58,22 @@ export const PROGRESS_OUTCOMES = Array.from(PROGRESS_OUTCOME_MAP.entries()).map(
 )
 
 // Helper functions
-export function getTopicTypeName(type: TopicType): string {
+export function getTopicTypeName (type: TopicType): string {
   return TOPIC_TYPE_MAP.get(type) || '未知'
 }
 
-export function getTopicReviewStatusName(status: TopicReviewStatus): string {
+export function getTopicReviewStatusName (status: TopicReviewStatus): string {
   return TOPIC_REVIEW_STATUS_MAP.get(status)?.name || '未知'
 }
 
-export function getTopicReviewStatusColor(status: TopicReviewStatus): string {
+export function getTopicReviewStatusColor (status: TopicReviewStatus): string {
   return TOPIC_REVIEW_STATUS_MAP.get(status)?.color || 'default'
 }
 
-export function getAssignmentStatusName(status: AssignmentStatus): string {
+export function getAssignmentStatusName (status: AssignmentStatus): string {
   return ASSIGNMENT_STATUS_MAP.get(status) || '未知'
 }
 
-export function getProgressOutcomeName(outcome: ProgressOutcome): string {
+export function getProgressOutcomeName (outcome: ProgressOutcome): string {
   return PROGRESS_OUTCOME_MAP.get(outcome) || '未知'
 }

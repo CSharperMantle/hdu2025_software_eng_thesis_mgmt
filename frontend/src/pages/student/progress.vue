@@ -261,242 +261,242 @@
 </template>
 
 <script lang="ts" setup>
-import type { FinalDefenseDetails, ProgressReportDetailResponse, UserGetResponse } from '@/api'
-import { computed, onMounted, ref } from 'vue'
-import { createApiClient, getErrorMessage, PROGRESS_OUTCOME_MAP } from '@/api'
-import { API_BASE_URL } from '@/config'
+  import type { FinalDefenseDetails, ProgressReportDetailResponse, UserGetResponse } from '@/api'
+  import { computed, onMounted, ref } from 'vue'
+  import { createApiClient, getErrorMessage, PROGRESS_OUTCOME_MAP } from '@/api'
+  import { API_BASE_URL } from '@/config'
 
-const currentPart = 1 // Progress management is part 1 in StudentDrawer
-const userInfo = ref<UserGetResponse | null>(null)
-const assignedTopic = ref<any>(null)
-const progressReports = ref<ProgressReportDetailResponse[]>([])
-const finalDefense = ref<FinalDefenseDetails | null>(null)
-const submitDialogVisible = ref(false)
-const finalDefenseDialogVisible = ref(false)
-const submitFormRef = ref<any>(null)
-const finalDefenseFormRef = ref<any>(null)
-const submitType = ref<0 | 1>(0) // 0: initial, 1: midterm
-const attachmentFile = ref<File | null>(null)
-const attachmentData = ref<string>('')
-const defenseAttachmentFile = ref<File | null>(null)
-const defenseAttachmentData = ref<string>('')
+  const currentPart = 1 // Progress management is part 1 in StudentDrawer
+  const userInfo = ref<UserGetResponse | null>(null)
+  const assignedTopic = ref<any>(null)
+  const progressReports = ref<ProgressReportDetailResponse[]>([])
+  const finalDefense = ref<FinalDefenseDetails | null>(null)
+  const submitDialogVisible = ref(false)
+  const finalDefenseDialogVisible = ref(false)
+  const submitFormRef = ref<any>(null)
+  const finalDefenseFormRef = ref<any>(null)
+  const submitType = ref<0 | 1>(0) // 0: initial, 1: midterm
+  const attachmentFile = ref<File | null>(null)
+  const attachmentData = ref<string>('')
+  const defenseAttachmentFile = ref<File | null>(null)
+  const defenseAttachmentData = ref<string>('')
 
-const snackbar = ref({
-  show: false,
-  message: '',
-  color: 'success',
-})
+  const snackbar = ref({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-const stepItems = computed(() => [
-  { title: '选题', value: 1, props: { editable: true } },
-  { title: '开题', value: 2, props: { editable: currentStep.value >= 2 } },
-  { title: '中期', value: 3, props: { editable: currentStep.value >= 3 } },
-  { title: '答辩', value: 4, props: { editable: currentStep.value >= 4 } },
-])
+  const stepItems = computed(() => [
+    { title: '选题', value: 1, props: { editable: true } },
+    { title: '开题', value: 2, props: { editable: currentStep.value >= 2 } },
+    { title: '中期', value: 3, props: { editable: currentStep.value >= 3 } },
+    { title: '答辩', value: 4, props: { editable: currentStep.value >= 4 } },
+  ])
 
-const apiClient = createApiClient(API_BASE_URL)
+  const apiClient = createApiClient(API_BASE_URL)
 
-const initialReport = computed(() => {
-  const reports = progressReports.value.filter((r) => r.prog_report_type === 0)
-  if (reports.length === 0) return undefined
-  // Return the most recent report (latest submission)
-  return reports.sort(
-    (a, b) => new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
-  )[0]
-})
+  const initialReport = computed(() => {
+    const reports = progressReports.value.filter(r => r.prog_report_type === 0)
+    if (reports.length === 0) return undefined
+    // Return the most recent report (latest submission)
+    return reports.sort(
+      (a, b) => new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
+    )[0]
+  })
 
-const midtermReport = computed(() => {
-  const reports = progressReports.value.filter((r) => r.prog_report_type === 1)
-  if (reports.length === 0) return undefined
-  // Return the most recent report (latest submission)
-  return reports.sort(
-    (a, b) => new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
-  )[0]
-})
+  const midtermReport = computed(() => {
+    const reports = progressReports.value.filter(r => r.prog_report_type === 1)
+    if (reports.length === 0) return undefined
+    // Return the most recent report (latest submission)
+    return reports.sort(
+      (a, b) => new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
+    )[0]
+  })
 
-const currentStep = computed(() => {
-  if (!assignedTopic.value) return 1
-  if (!initialReport.value || initialReport.value.prog_report_outcome !== 1) return 2
-  if (!midtermReport.value || midtermReport.value.prog_report_outcome !== 1) return 3
-  return 4
-})
+  const currentStep = computed(() => {
+    if (!assignedTopic.value) return 1
+    if (!initialReport.value || initialReport.value.prog_report_outcome !== 1) return 2
+    if (!midtermReport.value || midtermReport.value.prog_report_outcome !== 1) return 3
+    return 4
+  })
 
-async function fetchUserInfo() {
-  try {
-    userInfo.value = await apiClient.auth.getCurrentUser()
-  } catch (error) {
-    console.error('Failed to fetch user info:', error)
+  async function fetchUserInfo () {
+    try {
+      userInfo.value = await apiClient.auth.getCurrentUser()
+    } catch (error) {
+      console.error('Failed to fetch user info:', error)
+    }
   }
-}
 
-async function loadAssignedTopic() {
-  try {
-    // Get student's assignments to find approved topic
-    const response = await apiClient.assignments.getAssignments()
-    const approvedAssignment = response.assignments.find((a) => a.status === 1)
-    if (approvedAssignment) {
-      assignedTopic.value = {
-        topic_name: approvedAssignment.topic_name,
-        teacher_name: '', // Not available in assignment response
-        assn_time: approvedAssignment.request_time,
+  async function loadAssignedTopic () {
+    try {
+      // Get student's assignments to find approved topic
+      const response = await apiClient.assignments.getAssignments()
+      const approvedAssignment = response.assignments.find(a => a.status === 1)
+      if (approvedAssignment) {
+        assignedTopic.value = {
+          topic_name: approvedAssignment.topic_name,
+          teacher_name: '', // Not available in assignment response
+          assn_time: approvedAssignment.request_time,
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to load assigned topic:', error)
+    }
+  }
+
+  async function loadProgressReports () {
+    try {
+      const response = await apiClient.progressReports.getProgressReports()
+      progressReports.value = response.reports
+    } catch (error: any) {
+      console.error('Failed to load progress reports:', error)
+    }
+  }
+
+  async function loadFinalDefense () {
+    try {
+      const response = await apiClient.finalDefenses.getFinalDefenses()
+      if (response.defenses && response.defenses.length > 0) {
+        finalDefense.value = response.defenses[0] ?? null
+      }
+    } catch (error: any) {
+      console.error('Failed to load final defense:', error)
+    }
+  }
+
+  function formatDateTime (dateTime: string | null): string {
+    if (!dateTime) return '-'
+    const date = new Date(dateTime)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  function getProgressOutcomeName (outcome: number): string {
+    return PROGRESS_OUTCOME_MAP.get(outcome as 0 | 1 | 2) || '未知'
+  }
+
+  function getProgressOutcomeColor (outcome: number): string {
+    const colors = { 0: 'warning', 1: 'success', 2: 'error' }
+    return colors[outcome as 0 | 1 | 2] || 'default'
+  }
+
+  function openSubmitDialog (type: 0 | 1) {
+    submitType.value = type
+    attachmentFile.value = null
+    attachmentData.value = ''
+    submitDialogVisible.value = true
+  }
+
+  function openFinalDefenseDialog () {
+    defenseAttachmentFile.value = null
+    defenseAttachmentData.value = ''
+    finalDefenseDialogVisible.value = true
+  }
+
+  function handleAttachmentChange () {
+    console.log(attachmentFile.value)
+    if (attachmentFile.value !== null) {
+      console.log(attachmentFile.value)
+      const file = attachmentFile.value
+      const reader = new FileReader()
+      reader.addEventListener('load', e => {
+        attachmentData.value = e.target?.result as string
+      })
+      reader.readAsDataURL(file)
+    }
+  }
+
+  function handleDefenseAttachmentChange () {
+    if (defenseAttachmentFile.value !== null) {
+      const file = defenseAttachmentFile.value
+      const reader = new FileReader()
+      reader.addEventListener('load', e => {
+        defenseAttachmentData.value = e.target?.result as string
+      })
+      reader.readAsDataURL(file)
+    }
+  }
+
+  async function submitProgressReport () {
+    const { valid } = await submitFormRef.value.validate()
+    if (!valid || !attachmentData.value) return
+
+    try {
+      await apiClient.progressReports.createProgressReport({
+        attachment: attachmentData.value,
+      })
+      snackbar.value = {
+        show: true,
+        message: submitType.value === 0 ? '开题报告提交成功' : '中期检查提交成功',
+        color: 'success',
+      }
+      submitDialogVisible.value = false
+      await loadProgressReports()
+    } catch (error: any) {
+      console.error('Failed to submit progress report:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('progress', error.statusCode),
+        color: 'error',
       }
     }
-  } catch (error: any) {
-    console.error('Failed to load assigned topic:', error)
   }
-}
 
-async function loadProgressReports() {
-  try {
-    const response = await apiClient.progressReports.getProgressReports()
-    progressReports.value = response.reports
-  } catch (error: any) {
-    console.error('Failed to load progress reports:', error)
-  }
-}
+  async function submitFinalDefense () {
+    const { valid } = await finalDefenseFormRef.value.validate()
+    if (!valid || !defenseAttachmentData.value) return
 
-async function loadFinalDefense() {
-  try {
-    const response = await apiClient.finalDefenses.getFinalDefenses()
-    if (response.defenses && response.defenses.length > 0) {
-      finalDefense.value = response.defenses[0] ?? null
+    try {
+      await apiClient.finalDefenses.createFinalDefense({
+        attachment: defenseAttachmentData.value,
+      })
+      snackbar.value = {
+        show: true,
+        message: '答辩申请提交成功',
+        color: 'success',
+      }
+      finalDefenseDialogVisible.value = false
+      await loadFinalDefense()
+    } catch (error: any) {
+      console.error('Failed to submit final defense:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('defense', error.statusCode),
+        color: 'error',
+      }
     }
-  } catch (error: any) {
-    console.error('Failed to load final defense:', error)
   }
-}
 
-function formatDateTime(dateTime: string | null): string {
-  if (!dateTime) return '-'
-  const date = new Date(dateTime)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
+  function downloadAttachment (attachment: string, fileName: string) {
+    try {
+      // Create a temporary link element
+      const link = document.createElement('a')
+      link.href = attachment
+      link.download = fileName
+      document.body.append(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error('Failed to download attachment:', error)
+      snackbar.value = {
+        show: true,
+        message: '下载失败',
+        color: 'error',
+      }
+    }
+  }
+
+  onMounted(() => {
+    fetchUserInfo()
+    loadAssignedTopic()
+    loadProgressReports()
+    loadFinalDefense()
   })
-}
-
-function getProgressOutcomeName(outcome: number): string {
-  return PROGRESS_OUTCOME_MAP.get(outcome as 0 | 1 | 2) || '未知'
-}
-
-function getProgressOutcomeColor(outcome: number): string {
-  const colors = { 0: 'warning', 1: 'success', 2: 'error' }
-  return colors[outcome as 0 | 1 | 2] || 'default'
-}
-
-function openSubmitDialog(type: 0 | 1) {
-  submitType.value = type
-  attachmentFile.value = null
-  attachmentData.value = ''
-  submitDialogVisible.value = true
-}
-
-function openFinalDefenseDialog() {
-  defenseAttachmentFile.value = null
-  defenseAttachmentData.value = ''
-  finalDefenseDialogVisible.value = true
-}
-
-function handleAttachmentChange() {
-  console.log(attachmentFile.value)
-  if (attachmentFile.value !== null) {
-    console.log(attachmentFile.value)
-    const file = attachmentFile.value
-    const reader = new FileReader()
-    reader.addEventListener('load', (e) => {
-      attachmentData.value = e.target?.result as string
-    })
-    reader.readAsDataURL(file)
-  }
-}
-
-function handleDefenseAttachmentChange() {
-  if (defenseAttachmentFile.value !== null) {
-    const file = defenseAttachmentFile.value
-    const reader = new FileReader()
-    reader.addEventListener('load', (e) => {
-      defenseAttachmentData.value = e.target?.result as string
-    })
-    reader.readAsDataURL(file)
-  }
-}
-
-async function submitProgressReport() {
-  const { valid } = await submitFormRef.value.validate()
-  if (!valid || !attachmentData.value) return
-
-  try {
-    await apiClient.progressReports.createProgressReport({
-      attachment: attachmentData.value,
-    })
-    snackbar.value = {
-      show: true,
-      message: submitType.value === 0 ? '开题报告提交成功' : '中期检查提交成功',
-      color: 'success',
-    }
-    submitDialogVisible.value = false
-    await loadProgressReports()
-  } catch (error: any) {
-    console.error('Failed to submit progress report:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('progress', error.statusCode),
-      color: 'error',
-    }
-  }
-}
-
-async function submitFinalDefense() {
-  const { valid } = await finalDefenseFormRef.value.validate()
-  if (!valid || !defenseAttachmentData.value) return
-
-  try {
-    await apiClient.finalDefenses.createFinalDefense({
-      attachment: defenseAttachmentData.value,
-    })
-    snackbar.value = {
-      show: true,
-      message: '答辩申请提交成功',
-      color: 'success',
-    }
-    finalDefenseDialogVisible.value = false
-    await loadFinalDefense()
-  } catch (error: any) {
-    console.error('Failed to submit final defense:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('defense', error.statusCode),
-      color: 'error',
-    }
-  }
-}
-
-function downloadAttachment(attachment: string, fileName: string) {
-  try {
-    // Create a temporary link element
-    const link = document.createElement('a')
-    link.href = attachment
-    link.download = fileName
-    document.body.append(link)
-    link.click()
-    link.remove()
-  } catch (error) {
-    console.error('Failed to download attachment:', error)
-    snackbar.value = {
-      show: true,
-      message: '下载失败',
-      color: 'error',
-    }
-  }
-}
-
-onMounted(() => {
-  fetchUserInfo()
-  loadAssignedTopic()
-  loadProgressReports()
-  loadFinalDefense()
-})
 </script>

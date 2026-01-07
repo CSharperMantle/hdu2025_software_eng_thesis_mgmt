@@ -17,39 +17,39 @@
 </template>
 
 <script lang="ts" setup>
-import type { UserGetResponse } from '@/api'
-import { computed } from 'vue'
+  import type { UserGetResponse } from '@/api'
+  import { computed } from 'vue'
 
-const props = defineProps<{
-  userInfo: UserGetResponse | null
-  role?: 'student' | 'teacher' | 'admin' | 'office' | 'defense_board'
-}>()
+  const props = defineProps<{
+    userInfo: UserGetResponse | null
+    role?: 'student' | 'teacher' | 'admin' | 'office' | 'defense_board'
+  }>()
 
-const idLabel = computed(() => {
-  switch (props.role) {
-    case 'student': {
-      return '学号'
+  const idLabel = computed(() => {
+    switch (props.role) {
+      case 'student': {
+        return '学号'
+      }
+      case 'teacher': {
+        return '工号'
+      }
+      case 'admin': {
+        return '管理员'
+      }
+      case 'office': {
+        return '教务处'
+      }
+      case 'defense_board': {
+        return '答辩组'
+      }
+      default: {
+        return '编号'
+      }
     }
-    case 'teacher': {
-      return '工号'
-    }
-    case 'admin': {
-      return '管理员'
-    }
-    case 'office': {
-      return '教务处'
-    }
-    case 'defense_board': {
-      return '答辩组'
-    }
-    default: {
-      return '编号'
-    }
-  }
-})
+  })
 
-const avatarText = computed(() => {
-  const name = props.userInfo?.name || props.userInfo?.username || '用户'
-  return name.charAt(0).toUpperCase()
-})
+  const avatarText = computed(() => {
+    const name = props.userInfo?.name || props.userInfo?.username || '用户'
+    return name.charAt(0).toUpperCase()
+  })
 </script>

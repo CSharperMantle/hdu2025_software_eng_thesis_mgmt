@@ -137,7 +137,7 @@ export const ERROR_MESSAGES = {
   },
 } as const
 
-export function getErrorMessage(endpoint: string, statusCode?: number): string {
+export function getErrorMessage (endpoint: string, statusCode?: number): string {
   if (!statusCode) {
     return '网络错误，请检查网络连接'
   }
@@ -156,9 +156,9 @@ export function getErrorMessage(endpoint: string, statusCode?: number): string {
   }
 
   // Get specific message or fallback to default
-  const message =
-    (messages as Record<number, string>)[statusCode] ||
-    (ERROR_MESSAGES.default as Record<number, string>)[statusCode]
+  const message
+    = (messages as Record<number, string>)[statusCode]
+      || (ERROR_MESSAGES.default as Record<number, string>)[statusCode]
 
   return message || '操作失败，请稍后重试'
 }

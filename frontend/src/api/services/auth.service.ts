@@ -2,25 +2,25 @@ import type { LoginRequest, UserGetResponse, UserPatchRequest, UserPostRequest }
 import type { HttpClient } from '../utils/http-client'
 
 export class AuthService {
-  constructor(private http: HttpClient) {}
+  constructor (private http: HttpClient) {}
 
-  async login(data: LoginRequest): Promise<void> {
+  async login (data: LoginRequest): Promise<void> {
     await this.http.post('/login', data)
   }
 
-  async logout(): Promise<void> {
+  async logout (): Promise<void> {
     await this.http.post('/logout')
   }
 
-  async getCurrentUser(): Promise<UserGetResponse> {
+  async getCurrentUser (): Promise<UserGetResponse> {
     return this.http.get<UserGetResponse>('/user')
   }
 
-  async updateCurrentUser(data: UserPatchRequest): Promise<void> {
+  async updateCurrentUser (data: UserPatchRequest): Promise<void> {
     await this.http.patch('/user', data)
   }
 
-  async createUser(data: UserPostRequest): Promise<UserGetResponse> {
+  async createUser (data: UserPostRequest): Promise<UserGetResponse> {
     return this.http.post<UserGetResponse>('/user', data)
   }
 }

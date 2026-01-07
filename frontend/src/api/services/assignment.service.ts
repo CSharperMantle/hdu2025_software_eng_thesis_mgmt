@@ -7,17 +7,17 @@ import type {
 import type { HttpClient } from '../utils/http-client'
 
 export class AssignmentService {
-  constructor(private http: HttpClient) {}
+  constructor (private http: HttpClient) {}
 
-  async getAssignments(params?: PaginationParams): Promise<AssignmentsGetResponse> {
+  async getAssignments (params?: PaginationParams): Promise<AssignmentsGetResponse> {
     return this.http.get<AssignmentsGetResponse>('/assignments', { params })
   }
 
-  async createAssignment(data: AssignmentsPostRequest): Promise<void> {
+  async createAssignment (data: AssignmentsPostRequest): Promise<void> {
     await this.http.post('/assignments', data)
   }
 
-  async updateAssignmentStatus(
+  async updateAssignmentStatus (
     studentUserName: string,
     topicId: number,
     data: AssignmentRecordPatchRequest,

@@ -193,7 +193,7 @@
                       v-if="
                         (report.defense.final_def_outcome === null ||
                           report.defense.final_def_outcome === undefined) &&
-                        !report.defense.def_board_user_name
+                          !report.defense.def_board_user_name
                       "
                       class="d-flex gap-2"
                     >
@@ -205,8 +205,8 @@
                     <div
                       v-else-if="
                         report.defense.def_board_user_name &&
-                        (report.defense.final_def_outcome === null ||
-                          report.defense.final_def_outcome === undefined)
+                          (report.defense.final_def_outcome === null ||
+                            report.defense.final_def_outcome === undefined)
                       "
                       class="text-grey text-caption mt-2"
                     >
@@ -231,9 +231,7 @@
   <v-dialog v-model="reviewDialogVisible" max-width="600">
     <v-card v-if="selectedReport">
       <v-card-title class="d-flex justify-space-between align-center">
-        <span class="text-h5"
-          >审核{{ selectedReport.prog_report_type === 0 ? '开题报告' : '中期检查' }}</span
-        >
+        <span class="text-h5">审核{{ selectedReport.prog_report_type === 0 ? '开题报告' : '中期检查' }}</span>
         <v-btn icon="mdi-close" variant="text" @click="reviewDialogVisible = false" />
       </v-card-title>
 
@@ -275,384 +273,384 @@
 </template>
 
 <script lang="ts" setup>
-import type { FinalDefenseDetails, ProgressReportDetailResponse, UserGetResponse } from '@/api'
-import { onMounted, ref } from 'vue'
-import { createApiClient, getErrorMessage, PROGRESS_OUTCOME_MAP } from '@/api'
-import { API_BASE_URL } from '@/config'
+  import type { FinalDefenseDetails, ProgressReportDetailResponse, UserGetResponse } from '@/api'
+  import { onMounted, ref } from 'vue'
+  import { createApiClient, getErrorMessage, PROGRESS_OUTCOME_MAP } from '@/api'
+  import { API_BASE_URL } from '@/config'
 
-const currentPart = 2 // Progress review is part 2 in TeacherDrawer
-const userInfo = ref<UserGetResponse | null>(null)
-const progressReports = ref<ProgressReportDetailResponse[]>([])
-const finalDefenses = ref<FinalDefenseDetails[]>([])
-const expandedPanel = ref<number | null>(null)
-const reviewDialogVisible = ref(false)
-const reviewFormRef = ref<any>(null)
-const selectedReport = ref<ProgressReportDetailResponse | null>(null)
+  const currentPart = 2 // Progress review is part 2 in TeacherDrawer
+  const userInfo = ref<UserGetResponse | null>(null)
+  const progressReports = ref<ProgressReportDetailResponse[]>([])
+  const finalDefenses = ref<FinalDefenseDetails[]>([])
+  const expandedPanel = ref<number | null>(null)
+  const reviewDialogVisible = ref(false)
+  const reviewFormRef = ref<any>(null)
+  const selectedReport = ref<ProgressReportDetailResponse | null>(null)
 
-const reviewForm = ref({
-  outcome: null as number | null,
-  grade: null as number | null,
-  comment: '',
-})
-
-const snackbar = ref({
-  show: false,
-  message: '',
-  color: 'success',
-})
-
-function getStepItems(report: GroupedReport) {
-  const currentStep = getCurrentStep(report)
-  return [
-    { title: '选题', value: 1, props: { editable: true } },
-    { title: '开题', value: 2, props: { editable: currentStep >= 2 } },
-    { title: '中期', value: 3, props: { editable: currentStep >= 3 } },
-    { title: '答辩', value: 4, props: { editable: currentStep >= 4 } },
-  ]
-}
-
-const outcomeOptions = [
-  { value: 1, name: '通过' },
-  { value: 2, name: '打回' },
-]
-
-const apiClient = createApiClient(API_BASE_URL)
-
-interface GroupedReport {
-  student_user_name: string
-  student_name: string
-  topic_id: number
-  topic_name: string
-  initial?: ProgressReportDetailResponse
-  midterm?: ProgressReportDetailResponse
-  defense?: FinalDefenseDetails
-}
-
-const groupedReports = ref<GroupedReport[]>([])
-
-async function fetchUserInfo() {
-  try {
-    userInfo.value = await apiClient.auth.getCurrentUser()
-  } catch (error) {
-    console.error('Failed to fetch user info:', error)
-  }
-}
-
-async function loadProgressReports() {
-  try {
-    const response = await apiClient.progressReports.getProgressReports()
-    progressReports.value = response.reports
-  } catch (error: any) {
-    console.error('Failed to load progress reports:', error)
-  }
-}
-
-async function loadFinalDefenses() {
-  try {
-    const response = await apiClient.finalDefenses.getFinalDefenses()
-    console.log(response.defenses)
-    finalDefenses.value = response.defenses
-  } catch (error: any) {
-    console.error('Failed to load final defenses:', error)
-  }
-}
-
-async function groupReports() {
-  const grouped = new Map<string, GroupedReport>()
-
-  // Group progress reports - keep only the most recent report of each type per student
-  const reportsByStudent = new Map<
-    string,
-    { initial: ProgressReportDetailResponse[]; midterm: ProgressReportDetailResponse[] }
-  >()
-
-  for (const report of progressReports.value) {
-    if (!reportsByStudent.has(report.student_user_name)) {
-      reportsByStudent.set(report.student_user_name, { initial: [], midterm: [] })
-    }
-    const studentReports = reportsByStudent.get(report.student_user_name)!
-    if (report.prog_report_type === 0) {
-      studentReports.initial.push(report)
-    } else {
-      studentReports.midterm.push(report)
-    }
-  }
-
-  // Create grouped reports with most recent reports
-  for (const [studentUserName, reports] of reportsByStudent.entries()) {
-    const latestInitial =
-      reports.initial.length > 0
-        ? reports.initial.sort(
-            (a, b) =>
-              new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
-          )[0]
-        : undefined
-    const latestMidterm =
-      reports.midterm.length > 0
-        ? reports.midterm.sort(
-            (a, b) =>
-              new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
-          )[0]
-        : undefined
-
-    if (latestInitial || latestMidterm) {
-      const report = latestInitial || latestMidterm!
-      grouped.set(studentUserName, {
-        student_user_name: studentUserName,
-        student_name: report.student_name,
-        topic_id: report.topic_id,
-        topic_name: '',
-        initial: latestInitial,
-        midterm: latestMidterm,
-      })
-    }
-  }
-
-  // Add final defenses and update topic names
-  // Group defenses by student to handle multiple defense records
-  const defensesByStudent = new Map<string, FinalDefenseDetails[]>()
-  for (const defense of finalDefenses.value) {
-    if (!defensesByStudent.has(defense.student_user_name)) {
-      defensesByStudent.set(defense.student_user_name, [])
-    }
-    defensesByStudent.get(defense.student_user_name)!.push(defense)
-  }
-
-  // For each student, select the appropriate defense record
-  for (const [studentUserName, defenses] of defensesByStudent.entries()) {
-    // If there are multiple defense records, prioritize incomplete ones (final_def_outcome is null/undefined)
-    const incompleteDefenses = defenses.filter(
-      (d) => d.final_def_outcome === null || d.final_def_outcome === undefined,
-    )
-
-    let selectedDefense: FinalDefenseDetails
-    if (incompleteDefenses.length > 0) {
-      // If there are incomplete defenses, select the most recent one
-      const sorted = incompleteDefenses.sort(
-        (a, b) => new Date(b.final_def_time).getTime() - new Date(a.final_def_time).getTime(),
-      )
-      selectedDefense = sorted[0]!
-    } else {
-      // If all defenses are complete, select the most recent one
-      const sorted = defenses.sort(
-        (a, b) => new Date(b.final_def_time).getTime() - new Date(a.final_def_time).getTime(),
-      )
-      selectedDefense = sorted[0]!
-    }
-
-    if (!grouped.has(studentUserName)) {
-      grouped.set(studentUserName, {
-        student_user_name: studentUserName,
-        student_name: selectedDefense.student_name,
-        topic_id: selectedDefense.topic_id,
-        topic_name: selectedDefense.topic_name,
-      })
-    }
-    const group = grouped.get(studentUserName)!
-    group.topic_name = selectedDefense.topic_name
-    group.defense = selectedDefense
-  }
-
-  // Fetch topic names for students without final defense
-  const topicIds = new Set<number>()
-  for (const report of grouped.values()) {
-    if (!report.topic_name && report.topic_id) {
-      topicIds.add(report.topic_id)
-    }
-  }
-
-  // Fetch topic details for missing topic names
-  const topicMap = new Map<number, string>()
-  for (const topicId of topicIds) {
-    try {
-      const topic = await apiClient.topics.getTopicById(topicId)
-      topicMap.set(topicId, topic.topic_name)
-    } catch (error) {
-      console.error(`Failed to fetch topic ${topicId}:`, error)
-    }
-  }
-
-  // Update topic names
-  for (const report of grouped.values()) {
-    if (!report.topic_name && topicMap.has(report.topic_id)) {
-      report.topic_name = topicMap.get(report.topic_id)!
-    }
-  }
-
-  groupedReports.value = Array.from(grouped.values())
-}
-
-function getCurrentStep(report: GroupedReport): number {
-  if (!report.initial || report.initial.prog_report_outcome !== 1) return 2
-  if (!report.midterm || report.midterm.prog_report_outcome !== 1) return 3
-  return 4
-}
-
-function getOverallStatus(report: GroupedReport): string {
-  if (report.defense) {
-    if (
-      report.defense.final_def_outcome !== null &&
-      report.defense.final_def_outcome !== undefined
-    ) {
-      return report.defense.final_def_outcome ? '已完成' : '答辩未通过'
-    }
-    return '待答辩'
-  }
-  if (report.midterm?.prog_report_outcome === 1) {
-    return '中期已通过'
-  }
-  if (report.midterm?.prog_report_outcome === 0) {
-    return '中期待审核'
-  }
-  if (report.initial?.prog_report_outcome === 1) {
-    return '开题已通过'
-  }
-  if (report.initial?.prog_report_outcome === 0) {
-    return '开题待审核'
-  }
-  return '未开始'
-}
-
-function getOverallStatusColor(report: GroupedReport): string {
-  const status = getOverallStatus(report)
-  if (status.includes('已完成')) return 'success'
-  if (status.includes('待审核')) return 'warning'
-  if (status.includes('未通过')) return 'error'
-  if (status.includes('已通过')) return 'info'
-  return 'default'
-}
-
-function formatDateTime(dateTime: string | null): string {
-  if (!dateTime) return '-'
-  const date = new Date(dateTime)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function getProgressOutcomeName(outcome: number): string {
-  return PROGRESS_OUTCOME_MAP.get(outcome as 0 | 1 | 2) || '未知'
-}
-
-function getProgressOutcomeColor(outcome: number): string {
-  const colors = { 0: 'warning', 1: 'success', 2: 'error' }
-  return colors[outcome as 0 | 1 | 2] || 'default'
-}
-
-function openReviewDialog(report: ProgressReportDetailResponse) {
-  selectedReport.value = report
-  reviewForm.value = {
-    outcome: null,
-    grade: null,
+  const reviewForm = ref({
+    outcome: null as number | null,
+    grade: null as number | null,
     comment: '',
+  })
+
+  const snackbar = ref({
+    show: false,
+    message: '',
+    color: 'success',
+  })
+
+  function getStepItems (report: GroupedReport) {
+    const currentStep = getCurrentStep(report)
+    return [
+      { title: '选题', value: 1, props: { editable: true } },
+      { title: '开题', value: 2, props: { editable: currentStep >= 2 } },
+      { title: '中期', value: 3, props: { editable: currentStep >= 3 } },
+      { title: '答辩', value: 4, props: { editable: currentStep >= 4 } },
+    ]
   }
-  reviewDialogVisible.value = true
-}
 
-async function submitReview() {
-  const { valid } = await reviewFormRef.value.validate()
-  if (!valid || !selectedReport.value) return
+  const outcomeOptions = [
+    { value: 1, name: '通过' },
+    { value: 2, name: '打回' },
+  ]
 
-  try {
-    await apiClient.progressReports.updateProgressReport(selectedReport.value.prog_report_id, {
-      outcome: reviewForm.value.outcome as 0 | 1 | 2,
-      comment: reviewForm.value.comment || undefined,
-      grade: reviewForm.value.grade || undefined,
-    })
-    snackbar.value = {
-      show: true,
-      message: '审核提交成功',
-      color: 'success',
+  const apiClient = createApiClient(API_BASE_URL)
+
+  interface GroupedReport {
+    student_user_name: string
+    student_name: string
+    topic_id: number
+    topic_name: string
+    initial?: ProgressReportDetailResponse
+    midterm?: ProgressReportDetailResponse
+    defense?: FinalDefenseDetails
+  }
+
+  const groupedReports = ref<GroupedReport[]>([])
+
+  async function fetchUserInfo () {
+    try {
+      userInfo.value = await apiClient.auth.getCurrentUser()
+    } catch (error) {
+      console.error('Failed to fetch user info:', error)
     }
-    reviewDialogVisible.value = false
-    // Reload data
+  }
+
+  async function loadProgressReports () {
+    try {
+      const response = await apiClient.progressReports.getProgressReports()
+      progressReports.value = response.reports
+    } catch (error: any) {
+      console.error('Failed to load progress reports:', error)
+    }
+  }
+
+  async function loadFinalDefenses () {
+    try {
+      const response = await apiClient.finalDefenses.getFinalDefenses()
+      console.log(response.defenses)
+      finalDefenses.value = response.defenses
+    } catch (error: any) {
+      console.error('Failed to load final defenses:', error)
+    }
+  }
+
+  async function groupReports () {
+    const grouped = new Map<string, GroupedReport>()
+
+    // Group progress reports - keep only the most recent report of each type per student
+    const reportsByStudent = new Map<
+      string,
+      { initial: ProgressReportDetailResponse[], midterm: ProgressReportDetailResponse[] }
+    >()
+
+    for (const report of progressReports.value) {
+      if (!reportsByStudent.has(report.student_user_name)) {
+        reportsByStudent.set(report.student_user_name, { initial: [], midterm: [] })
+      }
+      const studentReports = reportsByStudent.get(report.student_user_name)!
+      if (report.prog_report_type === 0) {
+        studentReports.initial.push(report)
+      } else {
+        studentReports.midterm.push(report)
+      }
+    }
+
+    // Create grouped reports with most recent reports
+    for (const [studentUserName, reports] of reportsByStudent.entries()) {
+      const latestInitial
+        = reports.initial.length > 0
+          ? reports.initial.sort(
+            (a, b) =>
+              new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
+          )[0]
+          : undefined
+      const latestMidterm
+        = reports.midterm.length > 0
+          ? reports.midterm.sort(
+            (a, b) =>
+              new Date(b.prog_report_time).getTime() - new Date(a.prog_report_time).getTime(),
+          )[0]
+          : undefined
+
+      if (latestInitial || latestMidterm) {
+        const report = latestInitial || latestMidterm!
+        grouped.set(studentUserName, {
+          student_user_name: studentUserName,
+          student_name: report.student_name,
+          topic_id: report.topic_id,
+          topic_name: '',
+          initial: latestInitial,
+          midterm: latestMidterm,
+        })
+      }
+    }
+
+    // Add final defenses and update topic names
+    // Group defenses by student to handle multiple defense records
+    const defensesByStudent = new Map<string, FinalDefenseDetails[]>()
+    for (const defense of finalDefenses.value) {
+      if (!defensesByStudent.has(defense.student_user_name)) {
+        defensesByStudent.set(defense.student_user_name, [])
+      }
+      defensesByStudent.get(defense.student_user_name)!.push(defense)
+    }
+
+    // For each student, select the appropriate defense record
+    for (const [studentUserName, defenses] of defensesByStudent.entries()) {
+      // If there are multiple defense records, prioritize incomplete ones (final_def_outcome is null/undefined)
+      const incompleteDefenses = defenses.filter(
+        d => d.final_def_outcome === null || d.final_def_outcome === undefined,
+      )
+
+      let selectedDefense: FinalDefenseDetails
+      if (incompleteDefenses.length > 0) {
+        // If there are incomplete defenses, select the most recent one
+        const sorted = incompleteDefenses.sort(
+          (a, b) => new Date(b.final_def_time).getTime() - new Date(a.final_def_time).getTime(),
+        )
+        selectedDefense = sorted[0]!
+      } else {
+        // If all defenses are complete, select the most recent one
+        const sorted = defenses.sort(
+          (a, b) => new Date(b.final_def_time).getTime() - new Date(a.final_def_time).getTime(),
+        )
+        selectedDefense = sorted[0]!
+      }
+
+      if (!grouped.has(studentUserName)) {
+        grouped.set(studentUserName, {
+          student_user_name: studentUserName,
+          student_name: selectedDefense.student_name,
+          topic_id: selectedDefense.topic_id,
+          topic_name: selectedDefense.topic_name,
+        })
+      }
+      const group = grouped.get(studentUserName)!
+      group.topic_name = selectedDefense.topic_name
+      group.defense = selectedDefense
+    }
+
+    // Fetch topic names for students without final defense
+    const topicIds = new Set<number>()
+    for (const report of grouped.values()) {
+      if (!report.topic_name && report.topic_id) {
+        topicIds.add(report.topic_id)
+      }
+    }
+
+    // Fetch topic details for missing topic names
+    const topicMap = new Map<number, string>()
+    for (const topicId of topicIds) {
+      try {
+        const topic = await apiClient.topics.getTopicById(topicId)
+        topicMap.set(topicId, topic.topic_name)
+      } catch (error) {
+        console.error(`Failed to fetch topic ${topicId}:`, error)
+      }
+    }
+
+    // Update topic names
+    for (const report of grouped.values()) {
+      if (!report.topic_name && topicMap.has(report.topic_id)) {
+        report.topic_name = topicMap.get(report.topic_id)!
+      }
+    }
+
+    groupedReports.value = Array.from(grouped.values())
+  }
+
+  function getCurrentStep (report: GroupedReport): number {
+    if (!report.initial || report.initial.prog_report_outcome !== 1) return 2
+    if (!report.midterm || report.midterm.prog_report_outcome !== 1) return 3
+    return 4
+  }
+
+  function getOverallStatus (report: GroupedReport): string {
+    if (report.defense) {
+      if (
+        report.defense.final_def_outcome !== null
+        && report.defense.final_def_outcome !== undefined
+      ) {
+        return report.defense.final_def_outcome ? '已完成' : '答辩未通过'
+      }
+      return '待答辩'
+    }
+    if (report.midterm?.prog_report_outcome === 1) {
+      return '中期已通过'
+    }
+    if (report.midterm?.prog_report_outcome === 0) {
+      return '中期待审核'
+    }
+    if (report.initial?.prog_report_outcome === 1) {
+      return '开题已通过'
+    }
+    if (report.initial?.prog_report_outcome === 0) {
+      return '开题待审核'
+    }
+    return '未开始'
+  }
+
+  function getOverallStatusColor (report: GroupedReport): string {
+    const status = getOverallStatus(report)
+    if (status.includes('已完成')) return 'success'
+    if (status.includes('待审核')) return 'warning'
+    if (status.includes('未通过')) return 'error'
+    if (status.includes('已通过')) return 'info'
+    return 'default'
+  }
+
+  function formatDateTime (dateTime: string | null): string {
+    if (!dateTime) return '-'
+    const date = new Date(dateTime)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  function getProgressOutcomeName (outcome: number): string {
+    return PROGRESS_OUTCOME_MAP.get(outcome as 0 | 1 | 2) || '未知'
+  }
+
+  function getProgressOutcomeColor (outcome: number): string {
+    const colors = { 0: 'warning', 1: 'success', 2: 'error' }
+    return colors[outcome as 0 | 1 | 2] || 'default'
+  }
+
+  function openReviewDialog (report: ProgressReportDetailResponse) {
+    selectedReport.value = report
+    reviewForm.value = {
+      outcome: null,
+      grade: null,
+      comment: '',
+    }
+    reviewDialogVisible.value = true
+  }
+
+  async function submitReview () {
+    const { valid } = await reviewFormRef.value.validate()
+    if (!valid || !selectedReport.value) return
+
+    try {
+      await apiClient.progressReports.updateProgressReport(selectedReport.value.prog_report_id, {
+        outcome: reviewForm.value.outcome as 0 | 1 | 2,
+        comment: reviewForm.value.comment || undefined,
+        grade: reviewForm.value.grade || undefined,
+      })
+      snackbar.value = {
+        show: true,
+        message: '审核提交成功',
+        color: 'success',
+      }
+      reviewDialogVisible.value = false
+      // Reload data
+      await loadProgressReports()
+      await groupReports()
+    } catch (error: any) {
+      console.error('Failed to submit review:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('progress', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  function downloadAttachment (attachment: string, fileName: string) {
+    try {
+      // Create a temporary link element
+      const link = document.createElement('a')
+      link.href = attachment
+      link.download = fileName
+      document.body.append(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error('Failed to download attachment:', error)
+      snackbar.value = {
+        show: true,
+        message: '下载失败',
+        color: 'error',
+      }
+    }
+  }
+
+  async function approveDefense (defense: FinalDefenseDetails) {
+    try {
+      await apiClient.finalDefenses.updateFinalDefenseAsTeacher(defense.final_def_id, {
+        approved: true,
+      })
+      snackbar.value = {
+        show: true,
+        message: '答辩申请已批准',
+        color: 'success',
+      }
+      // Reload data
+      await loadFinalDefenses()
+      await groupReports()
+    } catch (error: any) {
+      console.error('Failed to approve defense:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('defense', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  async function rejectDefense (defense: FinalDefenseDetails) {
+    try {
+      await apiClient.finalDefenses.updateFinalDefenseAsTeacher(defense.final_def_id, {
+        approved: false,
+      })
+      snackbar.value = {
+        show: true,
+        message: '答辩申请已拒绝',
+        color: 'success',
+      }
+      // Reload data
+      await loadFinalDefenses()
+      await groupReports()
+    } catch (error: any) {
+      console.error('Failed to reject defense:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('defense', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  onMounted(async () => {
+    fetchUserInfo()
     await loadProgressReports()
-    await groupReports()
-  } catch (error: any) {
-    console.error('Failed to submit review:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('progress', error.statusCode),
-      color: 'error',
-    }
-  }
-}
-
-function downloadAttachment(attachment: string, fileName: string) {
-  try {
-    // Create a temporary link element
-    const link = document.createElement('a')
-    link.href = attachment
-    link.download = fileName
-    document.body.append(link)
-    link.click()
-    link.remove()
-  } catch (error) {
-    console.error('Failed to download attachment:', error)
-    snackbar.value = {
-      show: true,
-      message: '下载失败',
-      color: 'error',
-    }
-  }
-}
-
-async function approveDefense(defense: FinalDefenseDetails) {
-  try {
-    await apiClient.finalDefenses.updateFinalDefenseAsTeacher(defense.final_def_id, {
-      approved: true,
-    })
-    snackbar.value = {
-      show: true,
-      message: '答辩申请已批准',
-      color: 'success',
-    }
-    // Reload data
     await loadFinalDefenses()
     await groupReports()
-  } catch (error: any) {
-    console.error('Failed to approve defense:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('defense', error.statusCode),
-      color: 'error',
-    }
-  }
-}
-
-async function rejectDefense(defense: FinalDefenseDetails) {
-  try {
-    await apiClient.finalDefenses.updateFinalDefenseAsTeacher(defense.final_def_id, {
-      approved: false,
-    })
-    snackbar.value = {
-      show: true,
-      message: '答辩申请已拒绝',
-      color: 'success',
-    }
-    // Reload data
-    await loadFinalDefenses()
-    await groupReports()
-  } catch (error: any) {
-    console.error('Failed to reject defense:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('defense', error.statusCode),
-      color: 'error',
-    }
-  }
-}
-
-onMounted(async () => {
-  fetchUserInfo()
-  await loadProgressReports()
-  await loadFinalDefenses()
-  await groupReports()
-})
+  })
 </script>
 
 <style scoped>

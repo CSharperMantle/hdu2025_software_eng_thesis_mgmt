@@ -139,124 +139,124 @@
 </template>
 
 <script lang="ts" setup>
-import type { TopicBrief, TopicDetails, UserGetResponse } from '@/api'
-import { onMounted, ref } from 'vue'
-import {
-  createApiClient,
-  getErrorMessage,
-  getTopicReviewStatusColor,
-  getTopicReviewStatusName,
-  getTopicTypeName,
-} from '@/api'
-import { API_BASE_URL } from '@/config'
+  import type { TopicBrief, TopicDetails, UserGetResponse } from '@/api'
+  import { onMounted, ref } from 'vue'
+  import {
+    createApiClient,
+    getErrorMessage,
+    getTopicReviewStatusColor,
+    getTopicReviewStatusName,
+    getTopicTypeName,
+  } from '@/api'
+  import { API_BASE_URL } from '@/config'
 
-const currentPart = 0
-const userInfo = ref<UserGetResponse | null>(null)
-const topics = ref<TopicBrief[]>([])
-const loading = ref(false)
-const page = ref(1)
-const itemsPerPage = ref(20)
-const totalItems = ref(0)
-const search = ref('')
-const dialogVisible = ref(false)
-const selectedTopic = ref<TopicDetails | null>(null)
+  const currentPart = 0
+  const userInfo = ref<UserGetResponse | null>(null)
+  const topics = ref<TopicBrief[]>([])
+  const loading = ref(false)
+  const page = ref(1)
+  const itemsPerPage = ref(20)
+  const totalItems = ref(0)
+  const search = ref('')
+  const dialogVisible = ref(false)
+  const selectedTopic = ref<TopicDetails | null>(null)
 
-const snackbar = ref({
-  show: false,
-  message: '',
-  color: 'success',
-})
+  const snackbar = ref({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-const headers = [
-  { title: '课题名称', key: 'topic_name', sortable: false },
-  { title: '指导教师', key: 'teacher_name', sortable: false },
-  { title: '课题类型', key: 'topic_type', sortable: false },
-  { title: '审核状态', key: 'topic_review_status', sortable: false },
-  { title: '名额', key: 'availability', sortable: false },
-  { title: '操作', key: 'actions', sortable: false },
-]
+  const headers = [
+    { title: '课题名称', key: 'topic_name', sortable: false },
+    { title: '指导教师', key: 'teacher_name', sortable: false },
+    { title: '课题类型', key: 'topic_type', sortable: false },
+    { title: '审核状态', key: 'topic_review_status', sortable: false },
+    { title: '名额', key: 'availability', sortable: false },
+    { title: '操作', key: 'actions', sortable: false },
+  ]
 
-const apiClient = createApiClient(API_BASE_URL)
+  const apiClient = createApiClient(API_BASE_URL)
 
-async function fetchUserInfo() {
-  try {
-    userInfo.value = await apiClient.auth.getCurrentUser()
-  } catch (error) {
-    console.error('Failed to fetch user info:', error)
-  }
-}
-
-async function loadTopics() {
-  loading.value = true
-  try {
-    const params = {
-      page: page.value,
-      page_size: itemsPerPage.value,
-    }
-
-    const response = search.value
-      ? await apiClient.topics.searchTopics(search.value, params)
-      : await apiClient.topics.getTopics(params)
-
-    topics.value = response.topics
-    totalItems.value = response.total
-  } catch (error: any) {
-    console.error('Failed to load topics:', error)
-    snackbar.value = {
-      show: true,
-      message: '加载课题列表失败',
-      color: 'error',
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-function onSearchChange() {
-  page.value = 1
-  loadTopics()
-}
-
-async function viewTopic(topicId: number) {
-  try {
-    selectedTopic.value = await apiClient.topics.getTopicById(topicId)
-    dialogVisible.value = true
-  } catch (error: any) {
-    console.error('Failed to load topic details:', error)
-    snackbar.value = {
-      show: true,
-      message: '加载课题详情失败',
-      color: 'error',
+  async function fetchUserInfo () {
+    try {
+      userInfo.value = await apiClient.auth.getCurrentUser()
+    } catch (error) {
+      console.error('Failed to fetch user info:', error)
     }
   }
-}
 
-async function updateTopicStatus(status: 0 | 1 | 2) {
-  if (!selectedTopic.value) return
+  async function loadTopics () {
+    loading.value = true
+    try {
+      const params = {
+        page: page.value,
+        page_size: itemsPerPage.value,
+      }
 
-  try {
-    await apiClient.topics.updateTopicAsOffice(selectedTopic.value.topic_id, {
-      topic_review_status: status,
-    })
-    snackbar.value = {
-      show: true,
-      message: status === 1 ? '课题已通过审核' : '课题已被拒绝',
-      color: 'success',
-    }
-    dialogVisible.value = false
-    // Reload topics
-    await loadTopics()
-  } catch (error: any) {
-    console.error('Failed to update topic status:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('topic', error.statusCode),
-      color: 'error',
+      const response = search.value
+        ? await apiClient.topics.searchTopics(search.value, params)
+        : await apiClient.topics.getTopics(params)
+
+      topics.value = response.topics
+      totalItems.value = response.total
+    } catch (error: any) {
+      console.error('Failed to load topics:', error)
+      snackbar.value = {
+        show: true,
+        message: '加载课题列表失败',
+        color: 'error',
+      }
+    } finally {
+      loading.value = false
     }
   }
-}
 
-onMounted(() => {
-  fetchUserInfo()
-})
+  function onSearchChange () {
+    page.value = 1
+    loadTopics()
+  }
+
+  async function viewTopic (topicId: number) {
+    try {
+      selectedTopic.value = await apiClient.topics.getTopicById(topicId)
+      dialogVisible.value = true
+    } catch (error: any) {
+      console.error('Failed to load topic details:', error)
+      snackbar.value = {
+        show: true,
+        message: '加载课题详情失败',
+        color: 'error',
+      }
+    }
+  }
+
+  async function updateTopicStatus (status: 0 | 1 | 2) {
+    if (!selectedTopic.value) return
+
+    try {
+      await apiClient.topics.updateTopicAsOffice(selectedTopic.value.topic_id, {
+        topic_review_status: status,
+      })
+      snackbar.value = {
+        show: true,
+        message: status === 1 ? '课题已通过审核' : '课题已被拒绝',
+        color: 'success',
+      }
+      dialogVisible.value = false
+      // Reload topics
+      await loadTopics()
+    } catch (error: any) {
+      console.error('Failed to update topic status:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('topic', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  onMounted(() => {
+    fetchUserInfo()
+  })
 </script>

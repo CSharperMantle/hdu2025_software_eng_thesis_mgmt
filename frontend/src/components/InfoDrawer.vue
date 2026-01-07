@@ -91,138 +91,138 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { createApiClient, getErrorMessage } from '@/api'
-import { API_BASE_URL } from '@/config'
+  import { onMounted, ref } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { createApiClient, getErrorMessage } from '@/api'
+  import { API_BASE_URL } from '@/config'
 
-const router = useRouter()
-const apiClient = createApiClient(API_BASE_URL)
+  const router = useRouter()
+  const apiClient = createApiClient(API_BASE_URL)
 
-const userInfoDialogVisible = ref(false)
-const passwordDialogVisible = ref(false)
-const userInfoFormRef = ref<any>(null)
-const passwordFormRef = ref<any>(null)
+  const userInfoDialogVisible = ref(false)
+  const passwordDialogVisible = ref(false)
+  const userInfoFormRef = ref<any>(null)
+  const passwordFormRef = ref<any>(null)
 
-const userInfoForm = ref({
-  name: '',
-})
+  const userInfoForm = ref({
+    name: '',
+  })
 
-const passwordForm = ref({
-  password: '',
-  confirmPassword: '',
-})
-
-const avatarFile = ref<File | null>(null)
-const avatarPreview = ref<string | null>(null)
-
-const snackbar = ref({
-  show: false,
-  message: '',
-  color: 'success',
-})
-
-async function loadUserInfo() {
-  try {
-    const userInfo = await apiClient.auth.getCurrentUser()
-    userInfoForm.value.name = userInfo.name || ''
-    avatarPreview.value = userInfo.avatar || null
-  } catch (error) {
-    console.error('Failed to load user info:', error)
-  }
-}
-
-function openUserInfoDialog() {
-  loadUserInfo()
-  userInfoDialogVisible.value = true
-}
-
-function openPasswordDialog() {
-  passwordForm.value = {
+  const passwordForm = ref({
     password: '',
     confirmPassword: '',
-  }
-  passwordDialogVisible.value = true
-}
+  })
 
-function handleAvatarChange() {
-  console.log('avatar change')
-  console.log(avatarFile)
-  if (avatarFile.value !== null) {
-    console.log('avatar change valid')
-    const file = avatarFile.value
-    const reader = new FileReader()
-    reader.addEventListener('load', (e) => {
-      console.log(e)
-      avatarPreview.value = e.target?.result as string
-    })
-    reader.readAsDataURL(file)
-  }
-}
+  const avatarFile = ref<File | null>(null)
+  const avatarPreview = ref<string | null>(null)
 
-async function saveUserInfo() {
-  const { valid } = await userInfoFormRef.value.validate()
-  if (!valid) return
+  const snackbar = ref({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-  try {
-    await apiClient.auth.updateCurrentUser({
-      name: userInfoForm.value.name,
-      avatar: avatarPreview.value || undefined,
-    })
-    snackbar.value = {
-      show: true,
-      message: '账户信息更新成功',
-      color: 'success',
-    }
-    userInfoDialogVisible.value = false
-    // Reload page to refresh avatar in UserInfoBar
-    window.location.reload()
-  } catch (error: any) {
-    console.error('Failed to update user info:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('user', error.statusCode),
-      color: 'error',
+  async function loadUserInfo () {
+    try {
+      const userInfo = await apiClient.auth.getCurrentUser()
+      userInfoForm.value.name = userInfo.name || ''
+      avatarPreview.value = userInfo.avatar || null
+    } catch (error) {
+      console.error('Failed to load user info:', error)
     }
   }
-}
 
-async function savePassword() {
-  const { valid } = await passwordFormRef.value.validate()
-  if (!valid) return
+  function openUserInfoDialog () {
+    loadUserInfo()
+    userInfoDialogVisible.value = true
+  }
 
-  try {
-    await apiClient.auth.updateCurrentUser({
-      password: passwordForm.value.password,
-    })
-    snackbar.value = {
-      show: true,
-      message: '密码修改成功',
-      color: 'success',
+  function openPasswordDialog () {
+    passwordForm.value = {
+      password: '',
+      confirmPassword: '',
     }
-    passwordDialogVisible.value = false
-  } catch (error: any) {
-    console.error('Failed to update password:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('user', error.statusCode),
-      color: 'error',
+    passwordDialogVisible.value = true
+  }
+
+  function handleAvatarChange () {
+    console.log('avatar change')
+    console.log(avatarFile)
+    if (avatarFile.value !== null) {
+      console.log('avatar change valid')
+      const file = avatarFile.value
+      const reader = new FileReader()
+      reader.addEventListener('load', e => {
+        console.log(e)
+        avatarPreview.value = e.target?.result as string
+      })
+      reader.readAsDataURL(file)
     }
   }
-}
 
-async function handleLogout() {
-  try {
-    await apiClient.auth.logout()
-    router.push('/')
-  } catch (error) {
-    console.error('Logout failed:', error)
-    // Even if logout API fails, redirect to login page
-    router.push('/')
+  async function saveUserInfo () {
+    const { valid } = await userInfoFormRef.value.validate()
+    if (!valid) return
+
+    try {
+      await apiClient.auth.updateCurrentUser({
+        name: userInfoForm.value.name,
+        avatar: avatarPreview.value || undefined,
+      })
+      snackbar.value = {
+        show: true,
+        message: '账户信息更新成功',
+        color: 'success',
+      }
+      userInfoDialogVisible.value = false
+      // Reload page to refresh avatar in UserInfoBar
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Failed to update user info:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('user', error.statusCode),
+        color: 'error',
+      }
+    }
   }
-}
 
-onMounted(() => {
-  loadUserInfo()
-})
+  async function savePassword () {
+    const { valid } = await passwordFormRef.value.validate()
+    if (!valid) return
+
+    try {
+      await apiClient.auth.updateCurrentUser({
+        password: passwordForm.value.password,
+      })
+      snackbar.value = {
+        show: true,
+        message: '密码修改成功',
+        color: 'success',
+      }
+      passwordDialogVisible.value = false
+    } catch (error: any) {
+      console.error('Failed to update password:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('user', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  async function handleLogout () {
+    try {
+      await apiClient.auth.logout()
+      router.push('/')
+    } catch (error) {
+      console.error('Logout failed:', error)
+      // Even if logout API fails, redirect to login page
+      router.push('/')
+    }
+  }
+
+  onMounted(() => {
+    loadUserInfo()
+  })
 </script>

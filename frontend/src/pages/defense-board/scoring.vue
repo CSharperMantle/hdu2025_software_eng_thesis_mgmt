@@ -139,137 +139,137 @@
 </template>
 
 <script lang="ts" setup>
-import type { FinalDefenseDetails, UserGetResponse } from '@/api'
-import { onMounted, ref } from 'vue'
-import { createApiClient, getErrorMessage } from '@/api'
-import { API_BASE_URL } from '@/config'
+  import type { FinalDefenseDetails, UserGetResponse } from '@/api'
+  import { onMounted, ref } from 'vue'
+  import { createApiClient, getErrorMessage } from '@/api'
+  import { API_BASE_URL } from '@/config'
 
-const currentPart = 0 // Scoring is part 0 in DefenseBoardDrawer
-const userInfo = ref<UserGetResponse | null>(null)
-const finalDefenses = ref<FinalDefenseDetails[]>([])
-const expandedPanel = ref<number | null>(null)
-const scoringDialogVisible = ref(false)
-const scoringFormRef = ref<any>(null)
-const selectedDefense = ref<FinalDefenseDetails | null>(null)
+  const currentPart = 0 // Scoring is part 0 in DefenseBoardDrawer
+  const userInfo = ref<UserGetResponse | null>(null)
+  const finalDefenses = ref<FinalDefenseDetails[]>([])
+  const expandedPanel = ref<number | null>(null)
+  const scoringDialogVisible = ref(false)
+  const scoringFormRef = ref<any>(null)
+  const selectedDefense = ref<FinalDefenseDetails | null>(null)
 
-const scoringForm = ref({
-  outcome: null as boolean | null,
-  grade: null as number | null,
-  comment: '',
-})
-
-const snackbar = ref({
-  show: false,
-  message: '',
-  color: 'success',
-})
-
-const apiClient = createApiClient(API_BASE_URL)
-
-async function fetchUserInfo() {
-  try {
-    userInfo.value = await apiClient.auth.getCurrentUser()
-  } catch (error) {
-    console.error('Failed to fetch user info:', error)
-  }
-}
-
-async function loadFinalDefenses() {
-  try {
-    const response = await apiClient.finalDefenses.getFinalDefenses()
-    finalDefenses.value = response.defenses
-  } catch (error: any) {
-    console.error('Failed to load final defenses:', error)
-  }
-}
-
-function getDefenseStatus(defense: FinalDefenseDetails): string {
-  if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
-    return defense.final_def_outcome ? '已通过' : '未通过'
-  }
-  return '待评分'
-}
-
-function getDefenseStatusColor(defense: FinalDefenseDetails): string {
-  if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
-    return defense.final_def_outcome ? 'success' : 'error'
-  }
-  return 'warning'
-}
-
-function formatDateTime(dateTime: string | null): string {
-  if (!dateTime) return '-'
-  const date = new Date(dateTime)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function openScoringDialog(defense: FinalDefenseDetails) {
-  selectedDefense.value = defense
-  scoringForm.value = {
-    outcome: null,
-    grade: null,
+  const scoringForm = ref({
+    outcome: null as boolean | null,
+    grade: null as number | null,
     comment: '',
-  }
-  scoringDialogVisible.value = true
-}
+  })
 
-async function submitScoring() {
-  const { valid } = await scoringFormRef.value.validate()
-  if (!valid || !selectedDefense.value) return
+  const snackbar = ref({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-  try {
-    await apiClient.finalDefenses.updateFinalDefenseAsDefenseBoard(
-      selectedDefense.value.final_def_id,
-      {
-        outcome: scoringForm.value.outcome as boolean,
-        comment: scoringForm.value.comment,
-        grade: scoringForm.value.grade as number,
-      },
-    )
-    snackbar.value = {
-      show: true,
-      message: '评分提交成功',
-      color: 'success',
-    }
-    scoringDialogVisible.value = false
-    // Reload data
-    await loadFinalDefenses()
-  } catch (error: any) {
-    console.error('Failed to submit scoring:', error)
-    snackbar.value = {
-      show: true,
-      message: getErrorMessage('defense', error.statusCode),
-      color: 'error',
+  const apiClient = createApiClient(API_BASE_URL)
+
+  async function fetchUserInfo () {
+    try {
+      userInfo.value = await apiClient.auth.getCurrentUser()
+    } catch (error) {
+      console.error('Failed to fetch user info:', error)
     }
   }
-}
 
-function downloadAttachment(attachment: string, fileName: string) {
-  try {
-    const link = document.createElement('a')
-    link.href = attachment
-    link.download = fileName
-    document.body.append(link)
-    link.click()
-    link.remove()
-  } catch (error) {
-    console.error('Failed to download attachment:', error)
-    snackbar.value = {
-      show: true,
-      message: '下载失败',
-      color: 'error',
+  async function loadFinalDefenses () {
+    try {
+      const response = await apiClient.finalDefenses.getFinalDefenses()
+      finalDefenses.value = response.defenses
+    } catch (error: any) {
+      console.error('Failed to load final defenses:', error)
     }
   }
-}
 
-onMounted(() => {
-  fetchUserInfo()
-  loadFinalDefenses()
-})
+  function getDefenseStatus (defense: FinalDefenseDetails): string {
+    if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
+      return defense.final_def_outcome ? '已通过' : '未通过'
+    }
+    return '待评分'
+  }
+
+  function getDefenseStatusColor (defense: FinalDefenseDetails): string {
+    if (defense.final_def_outcome !== null && defense.final_def_outcome !== undefined) {
+      return defense.final_def_outcome ? 'success' : 'error'
+    }
+    return 'warning'
+  }
+
+  function formatDateTime (dateTime: string | null): string {
+    if (!dateTime) return '-'
+    const date = new Date(dateTime)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  function openScoringDialog (defense: FinalDefenseDetails) {
+    selectedDefense.value = defense
+    scoringForm.value = {
+      outcome: null,
+      grade: null,
+      comment: '',
+    }
+    scoringDialogVisible.value = true
+  }
+
+  async function submitScoring () {
+    const { valid } = await scoringFormRef.value.validate()
+    if (!valid || !selectedDefense.value) return
+
+    try {
+      await apiClient.finalDefenses.updateFinalDefenseAsDefenseBoard(
+        selectedDefense.value.final_def_id,
+        {
+          outcome: scoringForm.value.outcome as boolean,
+          comment: scoringForm.value.comment,
+          grade: scoringForm.value.grade as number,
+        },
+      )
+      snackbar.value = {
+        show: true,
+        message: '评分提交成功',
+        color: 'success',
+      }
+      scoringDialogVisible.value = false
+      // Reload data
+      await loadFinalDefenses()
+    } catch (error: any) {
+      console.error('Failed to submit scoring:', error)
+      snackbar.value = {
+        show: true,
+        message: getErrorMessage('defense', error.statusCode),
+        color: 'error',
+      }
+    }
+  }
+
+  function downloadAttachment (attachment: string, fileName: string) {
+    try {
+      const link = document.createElement('a')
+      link.href = attachment
+      link.download = fileName
+      document.body.append(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error('Failed to download attachment:', error)
+      snackbar.value = {
+        show: true,
+        message: '下载失败',
+        color: 'error',
+      }
+    }
+  }
+
+  onMounted(() => {
+    fetchUserInfo()
+    loadFinalDefenses()
+  })
 </script>
