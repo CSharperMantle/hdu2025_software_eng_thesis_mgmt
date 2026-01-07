@@ -3,11 +3,8 @@ docs/pd/*.sws
 docs/pd/*.sql
 
 .diesel_lock
-backend/NOTES.md
 docs/api/bruno
 dbeaver/
-
-.env
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,rust,rust-analyzer,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,rust,rust-analyzer,visualstudiocode
