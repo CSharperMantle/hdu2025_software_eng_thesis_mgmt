@@ -183,25 +183,20 @@ pub async fn update_current_user(
         .map_err(|_| ApiError::InternalServerError(str!("Failed to get database connection")))?;
 
     conn.build_transaction().read_write().run(|conn| {
-        let mut changeset = SysUserChangeset {
-            user_password_hash: None,
-            user_password_salt: None,
-            user_avatar: req.avatar.clone().map(Some),
-        };
-
         if let Some(ref password) = req.password {
             let (hash, salt) = hash_password(password)
                 .map_err(|_| ApiError::InternalServerError(str!("Failed to hash password")))?;
-            changeset.user_password_hash = Some(hash);
-            changeset.user_password_salt = Some(salt);
-        }
 
-        diesel::update(sysuser::dsl::sysuser.find(&username))
-            .set(changeset)
-            .execute(conn)
-            .map_err(|_| {
-                ApiError::InternalServerError(str!("Failed to update user information"))
-            })?;
+            diesel::update(sysuser::dsl::sysuser.find(&username))
+                .set(SysUserPasswordChangeset {
+                    user_password_hash: Some(hash),
+                    user_password_salt: Some(salt),
+                })
+                .execute(conn)
+                .map_err(|_| {
+                    ApiError::InternalServerError(str!("Failed to update user information"))
+                })?;
+        }
 
         if let Some(ref avatar) = req.avatar {
             diesel::update(sysuser::dsl::sysuser.find(&username))

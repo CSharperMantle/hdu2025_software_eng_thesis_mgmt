@@ -15,10 +15,9 @@ pub struct SysUser {
 
 #[derive(AsChangeset, Debug, Clone)]
 #[diesel(table_name = crate::schema::sysuser)]
-pub struct SysUserChangeset {
+pub struct SysUserPasswordChangeset {
     pub user_password_hash: Option<Vec<u8>>,
     pub user_password_salt: Option<Vec<u8>>,
-    pub user_avatar: Option<Option<String>>,
 }
 
 #[derive(Identifiable, Queryable, Selectable, Debug, PartialEq, Clone, Serialize, Deserialize)]
