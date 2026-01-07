@@ -318,7 +318,7 @@ paths:
       description: |-
         根据用户身份更新课题信息的不同字段：
 
-        * `teacher`：更新自己创建的课题信息，更新后的课题审核状态变为“待审核”；
+        * `teacher`：更新自己创建的课题信息，更新后的课题审核状态变为“待审核”。若已有学生申请或选择该课题，则不可修改；
 
         * `office`：修改教师创建的课题审核状态；
 
@@ -352,6 +352,8 @@ paths:
                 $ref: "#/components/schemas/TopicDetails"
         "400":
           description: 请求体格式错误
+        "409":
+          description: 课题更新失败，已有学生申请或选择该课题
         "404":
           description: 未找到指定课题
         "401":

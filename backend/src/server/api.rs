@@ -767,6 +767,36 @@ pub async fn update_topic(
                     )));
                 }
 
+                // Check if any student has requested or is accepted for this topic
+                let has_requests = diesel::select(diesel::dsl::exists(
+                    assignmentrequest::table
+                        .filter(assignmentrequest::columns::topic_id.eq(topic.topic_id)),
+                ))
+                .get_result(conn)
+                .map_err(|e| {
+                    ApiError::InternalServerError(format!(
+                        "Failed to check for assignment requests: {}",
+                        e
+                    ))
+                })?;
+
+                let has_accepted = diesel::select(diesel::dsl::exists(
+                    student::table.filter(student::columns::topic_id.eq(topic.topic_id)),
+                ))
+                .get_result(conn)
+                .map_err(|e| {
+                    ApiError::InternalServerError(format!(
+                        "Failed to check for accepted students: {}",
+                        e
+                    ))
+                })?;
+
+                if has_requests || has_accepted {
+                    return Err(ApiError::Conflict(str!(
+                        "Topic cannot be updated once assignment requests or acceptances exist"
+                    )));
+                }
+
                 let changeset = TopicChangeset {
                     topic_name: req.topic_name.clone(),
                     topic_description: req.topic_description.clone(),
