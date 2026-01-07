@@ -100,7 +100,7 @@
           <v-text-field
             v-model.number="newTopic.topic_max_students"
             label="最大学生数"
-            :rules="[(v) => v > 0 && x < 200000 || '最大学生数必须大于 0 小于 200000']"
+            :rules="[(v) => v > 0 && v < 200000 || '最大学生数必须大于 0 小于 200000']"
             type="number"
             variant="outlined"
           />
