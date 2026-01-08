@@ -6,12 +6,16 @@
 
 * [docs/](docs/)：文档性内容
   * [pd/](docs/pd/)：PowerDesigner 数据库工程文件
-  * [progress/](docs/progress/)：过程性内容
+  * [progress/](docs/progress/)：周报、每周提交材料等过程性内容
   * [api/](docs/api/)：前后端接口文档
 * [scripts/](scripts/)：辅助脚本，如 Git Hook 等
 * [frontend/](frontend/)：前端代码
 * [backend/](backend/)：后端代码
 * [docker/](docker/)：部署用脚本
+
+## 任务管理
+
+<https://github.com/users/CSharperMantle/projects/5>
 
 ## 部署
 
